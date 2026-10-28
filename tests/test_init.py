@@ -39,19 +39,21 @@ async def test_setup_pushes_config(hass: HomeAssistant, fake_tv: FakeTV) -> None
 
 async def test_webpage_dashboards_open_directly(hass: HomeAssistant, fake_tv: FakeTV, hass_ws_client) -> None:
     assert await async_setup_component(hass, "lovelace", {})
+    entry = await setup_entry(hass, make_entry(fake_tv, options={"dashboards": "Home = /lovelace/0\nWeb = /dashboard-web"}))
+    assert fake_tv.config["dashboards"][1] == {"title": "Web", "path": "/dashboard-web"}
+    # The web server starts with the first client, so it comes after every setup.
     client = await hass_ws_client(hass)
 
     async def save_webpage(url: str) -> None:
         await client.send_json_auto_id({"type": "lovelace/config/save", "url_path": "dashboard-web",
                                         "config": {"strategy": {"type": "iframe", "url": url}}})
         assert (await client.receive_json())["success"]
+        await hass.async_block_till_done()
 
     await client.send_json_auto_id({"type": "lovelace/dashboards/create", "url_path": "dashboard-web",
                                     "title": "Web", "mode": "storage"})
     assert (await client.receive_json())["success"]
     await save_webpage("https://grafana.example/d/1")
-
-    entry = await setup_entry(hass, make_entry(fake_tv, options={"dashboards": "Home = /lovelace/0\nWeb = /dashboard-web"}))
     # The TV opens the site itself: in Home Assistant's frame it may refuse to load or lose its cookies.
     assert fake_tv.config["dashboards"] == [
         {"title": "Home", "path": "/lovelace/0"},
@@ -64,7 +66,6 @@ async def test_webpage_dashboards_open_directly(hass: HomeAssistant, fake_tv: Fa
 
     # A changed address reaches the TV straight away.
     await save_webpage("https://grafana.example/d/2")
-    await hass.async_block_till_done()
     assert fake_tv.config["dashboards"][1]["path"] == "https://grafana.example/d/2"
     await hass.config_entries.async_unload(entry.entry_id)
 
