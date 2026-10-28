@@ -29,24 +29,28 @@ a TV into an always-on Home Assistant display you can cast to.
 
 ## Install
 
+Three steps, and no computer needed for the TV.
+
 ### 1. TV app
 
-Build the APK (needs Docker only):
+On the TV, install the free **Downloader** app (from Google Play on Google TV, or the
+Amazon Appstore on Fire TV). Open it, enter **`pleatview.hustlesman.com/apk`** and
+choose *Install*. Android asks once to allow installs from Downloader.
 
-```bash
-tools/build-apk.sh assembleRelease
-# → android/app/build/outputs/apk/release/app-release.apk
-```
+The link always serves the newest signed release from
+[GitHub Releases](https://github.com/FleRoYs/pleatview/releases). Google Play and Amazon
+Appstore listings are on the [roadmap](ROADMAP.md). Android 7.0 or newer; so far it has
+been tested on an Android TV 16 emulator, and real devices are next.
 
-Without a keystore configured, release builds are signed with a local debug key, which
-is fine for side-loading (see [Release signing](#release-signing)).
+<details>
+<summary>Install with adb instead, and allow overlays</summary>
 
-Install it on the TV with adb. On Google TV, enable *Settings → System → About →
-Android TV OS build* (press 7 times), then *Developer options → USB/Wireless debugging*:
+On Google TV, enable *Settings → System → About → Android TV OS build* (press 7 times),
+then *Developer options → USB/Wireless debugging*:
 
 ```bash
 adb connect <tv-ip>:5555     # Google TV 12+: use "adb pair" from Wireless debugging first
-adb install -r app-release.apk
+adb install -r pleatview.apk
 ```
 
 **Recommended:** allow PleatView to draw over other apps. Google TV has no settings
@@ -56,38 +60,47 @@ screen for this, so grant it with adb:
 adb shell appops set com.hustlesman.pleatview SYSTEM_ALERT_WINDOW allow
 ```
 
-This lets Home Assistant bring PleatView to the front (Android blocks background
-starts otherwise), show notifications over other apps, and open PleatView at boot.
+This lets Home Assistant bring PleatView to the front (Android blocks background starts
+otherwise), show notifications over other apps, and open PleatView at boot.
 
-Other Android TV devices, including Fire TV, should work the same way (Android 7.0+).
-Only an Android TV 16 image has been tested so far.
+</details>
 
 ### 2. Home Assistant integration
 
-In HACS, add `https://github.com/FleRoYs/pleatview` as a custom repository (type
-*Integration*) and install **PleatView**, or copy `custom_components/pleatview` into your
-Home Assistant `config/custom_components/` folder. Then restart Home Assistant. Home Assistant 2025.1 or newer is required. Tested with 2026.10.
+[![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=FleRoYs&repository=pleatview&category=integration)
+
+The button opens PleatView in HACS on your own Home Assistant. Install it, then restart
+Home Assistant. Without HACS, copy `custom_components/pleatview` into your
+`config/custom_components/` folder. Requires Home Assistant 2025.1 or newer; tested with
+2026.10.
 
 ### 3. Pair
 
-1. Open PleatView on the TV. It shows its address and a 6-digit PIN.
-2. In Home Assistant, go to **Settings → Devices & services**. The TV appears as a
-   discovered PleatView device. If it doesn't (mDNS blocked between VLANs, for
-   example), add the **PleatView** integration with the address shown on the TV.
-3. Enter the PIN, then choose how the TV signs in to Home Assistant:
-   - **Create a user for this TV (recommended)**: Home Assistant creates a local-only
-     user and hands the TV a long-lived token. Untick *Allow controlling devices* for a
-     read-only display. Removing the integration deletes this user.
-   - **Use a long-lived access token** you created in your profile.
-   - **Don't sign in from here**: sign in on the TV with the remote instead.
+Open PleatView on the TV; it shows a 6-digit PIN. Home Assistant discovers the TV under
+**Settings → Devices & services**: select **Add** and enter the PIN. A few seconds later
+the TV shows your default dashboard.
 
-The TV loads your default dashboard within a few seconds. If the TV's app data is
-cleared later, Home Assistant asks you to enter the new PIN again and restores the
-settings.
+If the TV isn't discovered (for example, mDNS is blocked between VLANs), use this button
+and enter the address shown on the TV:
 
-**No integration?** Open `http://<tv-ip>:8765` on a phone, enter the PIN, and fill in
-the Home Assistant URL and a long-lived access token. Casting and notifications need
-the integration, but dashboards work without it.
+[![Open your Home Assistant instance and start setting up a new integration.](https://my.home-assistant.io/badges/config_flow_start.svg)](https://my.home-assistant.io/redirect/config_flow_start/?domain=pleatview)
+
+Pairing creates a dedicated, local-only Home Assistant user for the TV, so nobody types
+a password with the remote. Removing the integration deletes that user again. If the
+TV's app data is cleared, Home Assistant asks for the new PIN and restores everything.
+
+<details>
+<summary>Other sign-in options</summary>
+
+Open the PleatView integration in Home Assistant and choose **Reconfigure** from its ⋮
+menu. You can switch to a read-only user, a long-lived access token you created, or
+signing in on the TV with the remote.
+
+Without the integration, open `http://<tv-ip>:8765` on a phone, enter the PIN, and fill
+in the Home Assistant URL and a long-lived access token. Dashboards work this way;
+casting and notifications need the integration.
+
+</details>
 
 ## Using it from Home Assistant
 
@@ -247,12 +260,21 @@ tools/test-integration.sh             # integration tests on the pinned Home Ass
 Both scripts only need Docker. In Android Studio, open `android/` (AGP 9.4, compileSdk 37,
 JDK 17+). The debug build enables WebView debugging, so `chrome://inspect` works.
 
-### Release signing
+### Releases
 
-Set `PLEATVIEW_KEYSTORE`, `PLEATVIEW_KEYSTORE_PASSWORD`, `PLEATVIEW_KEY_ALIAS` and
-`PLEATVIEW_KEY_PASSWORD` (or the `pleatview.*` Gradle properties) to sign release builds
-with your own key. Keep that key: Android only updates an installed app signed with the
-same key.
+```bash
+tools/bump-version.sh 0.2.0   # app versionName/versionCode and integration version
+# merge, then tag the merge commit:
+git tag v0.2.0 && git push origin v0.2.0
+```
+
+The tag runs `.github/workflows/release.yml`. It signs the APK and app bundle with the
+release key from the repository secrets and publishes `pleatview.apk`, the integration
+zip and checksums. Keep the key safe: Android only updates an installed app signed with
+the same key. For a signed local build, set `PLEATVIEW_KEYSTORE` (a path anywhere on
+disk), `PLEATVIEW_KEYSTORE_PASSWORD`, `PLEATVIEW_KEY_ALIAS` and `PLEATVIEW_KEY_PASSWORD`
+before running `tools/build-apk.sh assembleRelease`. Without them, release builds fall
+back to the local debug key.
 
 ## Limitations
 

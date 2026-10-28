@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from contextlib import suppress
 from typing import Any
 
 import voluptuous as vol
@@ -38,6 +39,7 @@ from .const import (
     CONF_RETURN_HOME_MINUTES,
     CONF_ROTATE_SECONDS,
     CONF_TOKEN,
+    CONF_USER_ID,
     CONF_ZOOM,
     DEFAULT_OPTIONS,
     DEFAULT_PORT,
@@ -143,7 +145,18 @@ class PleatViewConfigFlow(ConfigFlow, domain=DOMAIN):
                         self._get_reauth_entry(),
                         data_updates={CONF_HOST: self._host, CONF_PORT: self._port, CONF_TOKEN: self._token},
                     )
-                return await self.async_step_dashboard_auth()
+                # Pairing is the only question: the TV signs in with a dedicated user.
+                # Other sign-in methods are under Reconfigure.
+                return self.async_create_entry(
+                    title=self._name,
+                    data={
+                        CONF_HOST: self._host,
+                        CONF_PORT: self._port,
+                        CONF_TOKEN: self._token,
+                        CONF_AUTH_MODE: AUTH_MANAGED,
+                        CONF_ALLOW_CONTROL: True,
+                    },
+                )
         return self.async_show_form(
             step_id="pair",
             data_schema=PIN_SCHEMA,
@@ -151,59 +164,57 @@ class PleatViewConfigFlow(ConfigFlow, domain=DOMAIN):
             errors=errors,
         )
 
-    async def async_step_dashboard_auth(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
-        """Choose how the TV signs in to Home Assistant to show dashboards."""
-        return self.async_show_menu(
-            step_id="dashboard_auth",
-            menu_options=["auth_managed", "auth_token", "auth_none"],
-            description_placeholders={"name": self._name},
-        )
-
-    async def async_step_auth_managed(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
-        """Create a dedicated, local-only user for the TV."""
-        if user_input is not None:
-            return self._create(AUTH_MANAGED, {CONF_ALLOW_CONTROL: user_input[CONF_ALLOW_CONTROL]})
-        return self.async_show_form(
-            step_id="auth_managed",
-            data_schema=vol.Schema({vol.Required(CONF_ALLOW_CONTROL, default=True): bool}),
-        )
-
-    async def async_step_auth_token(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
-        """Use a long-lived access token the user created."""
+    async def async_step_reconfigure(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        """Change how the TV signs in to Home Assistant."""
+        entry = self._get_reconfigure_entry()
         errors: dict[str, str] = {}
         if user_input is not None:
-            token = user_input[CONF_HA_TOKEN].strip()
-            if self.hass.auth.async_validate_access_token(token) is None:
+            mode = user_input[CONF_AUTH_MODE]
+            token = (user_input.get(CONF_HA_TOKEN) or "").strip()
+            if mode == AUTH_TOKEN and not token and entry.data.get(CONF_AUTH_MODE) == AUTH_TOKEN:
+                token = entry.data.get(CONF_HA_TOKEN, "")  # unchanged
+            if mode == AUTH_TOKEN and self.hass.auth.async_validate_access_token(token) is None:
                 errors[CONF_HA_TOKEN] = "invalid_ha_token"
             else:
-                return self._create(AUTH_TOKEN, {CONF_HA_TOKEN: token})
-        return self.async_show_form(
-            step_id="auth_token",
-            data_schema=vol.Schema(
-                {
-                    vol.Required(CONF_HA_TOKEN): selector.TextSelector(
-                        selector.TextSelectorConfig(type=selector.TextSelectorType.PASSWORD)
+                return await self._async_apply_sign_in(entry, mode, user_input[CONF_ALLOW_CONTROL], token)
+        schema = vol.Schema(
+            {
+                vol.Required(CONF_AUTH_MODE, default=entry.data.get(CONF_AUTH_MODE, AUTH_MANAGED)): selector.SelectSelector(
+                    selector.SelectSelectorConfig(
+                        options=[AUTH_MANAGED, AUTH_TOKEN, AUTH_NONE],
+                        translation_key="auth_mode",
+                        mode=selector.SelectSelectorMode.LIST,
                     )
-                }
-            ),
-            errors=errors,
+                ),
+                vol.Required(CONF_ALLOW_CONTROL, default=entry.data.get(CONF_ALLOW_CONTROL, True)): selector.BooleanSelector(),
+                vol.Optional(CONF_HA_TOKEN): selector.TextSelector(
+                    selector.TextSelectorConfig(type=selector.TextSelectorType.PASSWORD)
+                ),
+            }
         )
+        return self.async_show_form(step_id="reconfigure", data_schema=schema, errors=errors)
 
-    async def async_step_auth_none(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
-        """Leave signing in to the TV (remote control or phone setup page)."""
-        return self._create(AUTH_NONE, {})
-
-    def _create(self, auth_mode: str, extra: dict[str, Any]) -> ConfigFlowResult:
-        return self.async_create_entry(
-            title=self._name,
-            data={
-                CONF_HOST: self._host,
-                CONF_PORT: self._port,
-                CONF_TOKEN: self._token,
-                CONF_AUTH_MODE: auth_mode,
-                **extra,
-            },
-        )
+    async def _async_apply_sign_in(
+        self, entry: ConfigEntry, mode: str, allow_control: bool, token: str
+    ) -> ConfigFlowResult:
+        data = {**entry.data, CONF_AUTH_MODE: mode, CONF_ALLOW_CONTROL: allow_control}
+        was_managed = entry.data.get(CONF_AUTH_MODE) == AUTH_MANAGED
+        if was_managed and (mode != AUTH_MANAGED or allow_control != entry.data.get(CONF_ALLOW_CONTROL, True)):
+            # Remove the old user; setup creates a new one with the right permissions if still wanted.
+            if (user_id := data.pop(CONF_USER_ID, None)) and (user := await self.hass.auth.async_get_user(user_id)):
+                await self.hass.auth.async_remove_user(user)
+            data.pop(CONF_HA_TOKEN, None)
+        if mode == AUTH_TOKEN:
+            data[CONF_HA_TOKEN] = token
+        elif mode == AUTH_NONE:
+            data.pop(CONF_HA_TOKEN, None)
+            # Forget the token Home Assistant provided, so the TV shows the login page again.
+            client = PleatViewClient(
+                async_get_clientsession(self.hass), entry.data[CONF_HOST], entry.data[CONF_PORT], entry.data[CONF_TOKEN]
+            )
+            with suppress(PleatViewError):
+                await client.set_config({"ha_token": ""})
+        return self.async_update_reload_and_abort(entry, data=data)
 
     async def async_step_reauth(self, entry_data: Mapping[str, Any]) -> ConfigFlowResult:
         """The TV forgot us (app data cleared or pairing reset): pair again."""

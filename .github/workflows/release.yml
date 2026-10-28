@@ -57,16 +57,17 @@ jobs:
           name: pleatview-${{ github.ref_name }}-aab
           path: android/app/build/outputs/bundle/release/*.aab
 
+      # Fixed asset names keep https://github.com/FleRoYs/pleatview/releases/latest/download/pleatview.apk
+      # (and pleatview.hustlesman.com/apk) pointing at the newest release.
       - name: Publish the GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          apk="pleatview-$GITHUB_REF_NAME.apk"
-          integration="pleatview-integration-$GITHUB_REF_NAME.zip"
-          cp android/app/build/outputs/apk/release/app-release.apk "$apk"
-          (cd custom_components && zip -qr "../$integration" pleatview -x "*/__pycache__/*")
-          sha256sum "$apk" "$integration" > SHA256SUMS
+          cp android/app/build/outputs/apk/release/app-release.apk pleatview.apk
+          (cd custom_components && zip -qr ../pleatview-integration.zip pleatview -x "*/__pycache__/*")
+          sha256sum pleatview.apk pleatview-integration.zip > SHA256SUMS
+          # "latest" skips pre-releases, so only tags like v1.2.0-rc.1 are marked as one.
           prerelease=""
-          case "$GITHUB_REF_NAME" in v0.*|*-*) prerelease="--prerelease" ;; esac
-          gh release create "$GITHUB_REF_NAME" "$apk" "$integration" SHA256SUMS \
+          case "$GITHUB_REF_NAME" in *-*) prerelease="--prerelease" ;; esac
+          gh release create "$GITHUB_REF_NAME" pleatview.apk pleatview-integration.zip SHA256SUMS \
             --title "PleatView $GITHUB_REF_NAME" --generate-notes $prerelease
