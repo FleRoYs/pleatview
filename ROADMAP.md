@@ -25,6 +25,10 @@ Last updated 28 October 2026. **Current milestone: M0.**
 | [M5](#m5--lg-and-samsung-apps) LG and Samsung apps submitted | Fri 5 Mar 2027 | M4, seller accounts, TVs | Not started |
 | [M6](#m6--10) PleatView 1.0 | Fri 2 Apr 2027 | M5 approvals, 30-day soak | Not started |
 
+Progress is tracked in [GitHub milestones](https://github.com/FleRoYs/pleatview/milestones).
+Issues exist only for the current milestone and the long-lead tasks; each later milestone
+gets its issues when it starts.
+
 Done so far (v0.1.0): the Android TV app and Home Assistant integration work end to end
 on an Android TV 16 emulator against Home Assistant 2026.10. That covers pairing, automatic
 sign-in, kiosk mode, casting, cameras, notifications and recovery from crashes and outages.
@@ -40,7 +44,8 @@ sign-in, kiosk mode, casting, cameras, notifications and recovery from crashes a
 4. **P1 bugs are fixed immediately, in any milestone.** P1 means a crash, failed pairing,
    a dashboard that won't load, or a security issue. Everything else waits for the next
    milestone's scope.
-5. **Weekly check-in, Mondays, 15 minutes.** Update the status table. If a milestone is
+5. **Weekly check-in, Mondays, 15 minutes.** Update the status table and the GitHub
+   milestones. If a milestone is
    more than a week late, move scope to the parking lot rather than moving the date.
 6. **Every milestone ends with a tagged release** and a changelog.
 
