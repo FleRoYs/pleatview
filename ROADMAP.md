@@ -36,7 +36,7 @@ Progress is tracked in [GitHub milestones](https://github.com/FleRoYs/pleatview/
 Issues exist only for the current milestone and the long-lead tasks; each later milestone
 gets its issues when it starts.
 
-Done so far (v0.1.0): the Android TV app and Home Assistant integration work end to end
+Done so far: v0.1.1 is published as a signed release. The Android TV app and Home Assistant integration work end to end
 on an Android TV 16 emulator against Home Assistant 2026.10. That covers pairing, automatic
 sign-in, kiosk mode, casting, cameras, notifications and recovery from crashes and outages.
 25 app tests and 21 integration tests pass. Nothing has run on real TV hardware yet.
@@ -86,7 +86,7 @@ These take days to weeks to come back, so they start now, alongside M0.
 - [x] Setup ends at the PIN: a dedicated user by default, other sign-in methods under Reconfigure
 - [x] Release key in GitHub secrets; `tools/bump-version.sh` keeps app and integration versions in step
 - [ ] `pleatview.hustlesman.com` live over HTTPS
-- [ ] v0.1.1 tagged and published
+- [x] v0.1.1 tagged and published ([release](https://github.com/FleRoYs/pleatview/releases/tag/v0.1.1))
 - [ ] Long-lead tasks above started (tracked as issues)
 
 **Exit:** CI green on `main`, the site is live, and a signed v0.1.1 APK can be downloaded
