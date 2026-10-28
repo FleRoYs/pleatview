@@ -336,7 +336,7 @@ class PleatViewMediaPlayer(PleatViewEntity, MediaPlayerEntity):
         extra: dict[str, Any] = kwargs.get(ATTR_MEDIA_EXTRA) or {}
         if media_type == MEDIA_TYPE_DASHBOARD:
             await self._device.async_command(
-                "show_dashboard", path=media_id, duration=extra.get("duration")
+                "show_dashboard", path=self._device.target(media_id), duration=extra.get("duration")
             )
             return
         if media_type == MEDIA_TYPE_WEB:
@@ -428,7 +428,7 @@ class PleatViewMediaPlayer(PleatViewEntity, MediaPlayerEntity):
 
     async def async_show_dashboard(self, path: str, duration: int | None = None) -> None:
         """Show a dashboard, optionally returning home after ``duration`` seconds."""
-        await self._device.async_command("show_dashboard", path=path, duration=duration)
+        await self._device.async_command("show_dashboard", path=self._device.target(path), duration=duration)
 
     async def async_show_url(self, url: str, **layout: Any) -> None:
         """Open a web page full screen or as picture-in-picture."""

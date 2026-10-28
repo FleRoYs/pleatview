@@ -63,6 +63,7 @@ class PleatViewDevice:
         self.info = info
         self.state = state
         self.available = True
+        self.webpages: dict[str, str] = {}
         self.dashboards = resolve_dashboards(hass, entry.options.get(CONF_DASHBOARDS, ""))
         self._listeners: list[Callable[[], None]] = []
         self._received = False
@@ -88,6 +89,23 @@ class PleatViewDevice:
 
         return remove
 
+    def target(self, path: str) -> str:
+        """What the TV loads for a dashboard path: the site itself for Webpage dashboards."""
+        return self.webpages.get(path.rstrip("/"), path)
+
+    async def async_refresh_dashboards(self) -> bool:
+        """Re-read Home Assistant's dashboards; returns whether the list changed."""
+        self.webpages = await async_webpages(self.hass)
+        dashboards = [
+            {**dashboard, "path": self.target(dashboard["path"])}
+            for dashboard in resolve_dashboards(self.hass, self.entry.options.get(CONF_DASHBOARDS, ""))
+        ]
+        if dashboards == self.dashboards:
+            return False
+        self.dashboards = dashboards
+        self._notify()
+        return True
+
     async def async_command(self, command: str, **params: Any) -> None:
         """Send a command, translating failures into Home Assistant errors."""
         try:
@@ -107,7 +125,7 @@ class PleatViewDevice:
         options = {**DEFAULT_OPTIONS, **self.entry.options}
         config: dict[str, Any] = {
             "ha_url": options.get(CONF_HA_URL) or default_ha_url(self.hass),
-            "home_dashboard": options.get(CONF_HOME_DASHBOARD) or "",
+            "home_dashboard": self.target(options.get(CONF_HOME_DASHBOARD) or ""),
             "dashboards": self.dashboards,
             "kiosk": options[CONF_KIOSK],
             "zoom": int(options[CONF_ZOOM]),
@@ -247,3 +265,27 @@ def discover_dashboards(hass: HomeAssistant) -> list[dict[str, str]]:
 def resolve_dashboards(hass: HomeAssistant, configured: str) -> list[dict[str, str]]:
     """Dashboards from the options, or every dashboard Home Assistant has."""
     return parse_dashboards(configured) or discover_dashboards(hass)
+
+
+async def async_webpages(hass: HomeAssistant) -> dict[str, str]:
+    """Map the paths of Home Assistant's Webpage dashboards to the sites they show.
+
+    Home Assistant shows those sites in a frame, which many sites refuse or where they
+    lose their sign-in cookie. The TV opens the site itself instead.
+    """
+    data = hass.data.get("lovelace")
+    # A dict in older Home Assistant versions (2025.1), a dataclass in newer ones.
+    dashboards = data.get("dashboards", {}) if isinstance(data, dict) else getattr(data, "dashboards", {})
+    webpages = {}
+    for url_path, dashboard in list(dashboards.items()):
+        if not url_path:
+            continue
+        try:
+            config = await dashboard.async_load(False)
+        except HomeAssistantError:
+            continue  # a new dashboard without a configuration yet
+        strategy = config.get("strategy") if isinstance(config, dict) else None
+        url = strategy.get("url") if isinstance(strategy, dict) and strategy.get("type") == "iframe" else None
+        if isinstance(url, str) and url.strip().startswith(("http://", "https://")):
+            webpages[f"/{url_path}"] = url.strip()
+    return webpages

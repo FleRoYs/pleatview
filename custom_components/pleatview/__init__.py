@@ -9,8 +9,8 @@ import logging
 
 from homeassistant.auth.const import GROUP_ID_READ_ONLY, GROUP_ID_USER
 from homeassistant.auth.models import TOKEN_TYPE_LONG_LIVED_ACCESS_TOKEN
-from homeassistant.const import CONF_HOST, CONF_PORT, Platform
-from homeassistant.core import HomeAssistant
+from homeassistant.const import CONF_HOST, CONF_PORT, EVENT_PANELS_UPDATED, Platform
+from homeassistant.core import Event, HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
@@ -27,6 +27,8 @@ from .const import (
 from .coordinator import PleatViewConfigEntry, PleatViewDevice
 
 _LOGGER = logging.getLogger(__name__)
+
+LOVELACE_UPDATED = "lovelace_updated"  # fired when a dashboard's configuration is saved
 
 PLATFORMS = [Platform.MEDIA_PLAYER, Platform.NOTIFY]
 TOKEN_LIFETIME = timedelta(days=3650)
@@ -58,10 +60,22 @@ async def async_setup_entry(hass: HomeAssistant, entry: PleatViewConfigEntry) ->
 
     device = PleatViewDevice(hass, entry, client, info, state)
     entry.runtime_data = device
+    await device.async_refresh_dashboards()
     try:
         await device.async_sync_config()
     except PleatViewError as err:
         _LOGGER.warning("Could not configure %s: %s", entry.title, err)
+
+    async def _async_dashboards_changed(_: Event) -> None:
+        if await device.async_refresh_dashboards():
+            try:
+                await device.async_sync_config()
+            except PleatViewError as err:
+                _LOGGER.debug("Could not send the new dashboards to %s: %s", entry.title, err)
+
+    # A dashboard was added, renamed or removed, or a dashboard's configuration saved.
+    for event_type in (EVENT_PANELS_UPDATED, LOVELACE_UPDATED):
+        entry.async_on_unload(hass.bus.async_listen(event_type, _async_dashboards_changed))
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     entry.async_create_background_task(hass, device.async_run(), f"pleatview {entry.title}")

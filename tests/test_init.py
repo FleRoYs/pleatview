@@ -16,6 +16,7 @@ from custom_components.pleatview.const import (
 from homeassistant.auth.const import GROUP_ID_READ_ONLY
 from homeassistant.config_entries import SOURCE_REAUTH, ConfigEntryState
 from homeassistant.core import HomeAssistant
+from homeassistant.setup import async_setup_component
 
 from .conftest import HA_URL, make_entry, setup_entry
 from .fake_tv import FakeTV
@@ -33,6 +34,39 @@ async def test_setup_pushes_config(hass: HomeAssistant, fake_tv: FakeTV) -> None
     assert fake_tv.config["rev"]
     assert hass.states.get("media_player.living_room_tv").state == "idle"
     assert hass.states.get("notify.living_room_tv") is not None
+    await hass.config_entries.async_unload(entry.entry_id)
+
+
+async def test_webpage_dashboards_open_directly(hass: HomeAssistant, fake_tv: FakeTV, hass_ws_client) -> None:
+    assert await async_setup_component(hass, "lovelace", {})
+    entry = await setup_entry(hass, make_entry(fake_tv, options={"dashboards": "Home = /lovelace/0\nWeb = /dashboard-web"}))
+    assert fake_tv.config["dashboards"][1] == {"title": "Web", "path": "/dashboard-web"}
+    # The web server starts with the first client, so it comes after every setup.
+    client = await hass_ws_client(hass)
+
+    async def save_webpage(url: str) -> None:
+        await client.send_json_auto_id({"type": "lovelace/config/save", "url_path": "dashboard-web",
+                                        "config": {"strategy": {"type": "iframe", "url": url}}})
+        assert (await client.receive_json())["success"]
+        await hass.async_block_till_done()
+
+    await client.send_json_auto_id({"type": "lovelace/dashboards/create", "url_path": "dashboard-web",
+                                    "title": "Web", "mode": "storage"})
+    assert (await client.receive_json())["success"]
+    await save_webpage("https://grafana.example/d/1")
+    # The TV opens the site itself: in Home Assistant's frame it may refuse to load or lose its cookies.
+    assert fake_tv.config["dashboards"] == [
+        {"title": "Home", "path": "/lovelace/0"},
+        {"title": "Web", "path": "https://grafana.example/d/1"},
+    ]
+    await hass.services.async_call(
+        DOMAIN, "show_dashboard", {"entity_id": "media_player.living_room_tv", "path": "/dashboard-web"}, blocking=True
+    )
+    assert fake_tv.commands[-1] == {"command": "show_dashboard", "path": "https://grafana.example/d/1"}
+
+    # A changed address reaches the TV straight away.
+    await save_webpage("https://grafana.example/d/2")
+    assert fake_tv.config["dashboards"][1]["path"] == "https://grafana.example/d/2"
     await hass.config_entries.async_unload(entry.entry_id)
 
 

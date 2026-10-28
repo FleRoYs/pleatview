@@ -3,6 +3,7 @@ agp = "9.4.1"
 core = "1.19.1"
 webkit = "1.18.0"
 media3 = "1.11.1"
+qrcodegen = "1.8.0"
 junit = "4.13.2"
 json = "20260814"
 
@@ -14,6 +15,7 @@ media3-exoplayer-hls = { module = "androidx.media3:media3-exoplayer-hls", versio
 media3-exoplayer-dash = { module = "androidx.media3:media3-exoplayer-dash", version.ref = "media3" }
 media3-exoplayer-rtsp = { module = "androidx.media3:media3-exoplayer-rtsp", version.ref = "media3" }
 media3-ui = { module = "androidx.media3:media3-ui", version.ref = "media3" }
+qrcodegen = { module = "io.nayuki:qrcodegen", version.ref = "qrcodegen" }
 junit = { module = "junit:junit", version.ref = "junit" }
 json = { module = "org.json:json", version.ref = "json" }
 

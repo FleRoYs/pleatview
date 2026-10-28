@@ -12,6 +12,7 @@ import android.view.KeyEvent
 import android.view.View
 import android.view.WindowManager
 import android.widget.Button
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.window.OnBackInvokedDispatcher
@@ -248,6 +249,17 @@ class MainActivity : Activity(), Hub.Display, DashboardController.Callbacks, Med
         findViewById<TextView>(R.id.setup_address).text =
             if (ip != null) "Host  $ip     Port  $port" else getString(R.string.setup_no_network)
         findViewById<TextView>(R.id.setup_pin).text = formatPin(app.pairing.pin)
+        val qr = findViewById<ImageView>(R.id.setup_qr)
+        if (ip != null) {
+            val url = SetupCode.url(ip, port, app.pairing.pin)
+            if (qr.contentDescription != url) {
+                qr.setImageBitmap(SetupCode.bitmap(url, (220 * resources.displayMetrics.density).toInt()))
+                qr.contentDescription = url
+            }
+            qr.visibility = View.VISIBLE
+        } else {
+            qr.visibility = View.INVISIBLE
+        }
         findViewById<TextView>(R.id.setup_manual).text =
             getString(R.string.setup_manual, if (ip != null) "http://$ip:$port" else "http://<tv-address>:$port")
         findViewById<TextView>(R.id.setup_device).text =

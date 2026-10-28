@@ -106,7 +106,9 @@ from GitHub Releases.
 - [x] Scripted end-to-end test in `tools/e2e` (emulator and Home Assistant in Docker),
       runnable with one command
 - [ ] Test plan passed on: Google TV Streamer, Chromecast with Google TV (HD, the
-      low-memory worst case), a TV with Google TV built in, Fire TV (Fire OS 8)
+      low-memory worst case), a TV with Google TV built in, Fire TV (Fire OS 7 or 8).
+      Fire TV Stick (3rd Gen, Fire OS 7.7, 1 GB): every automated check passes
+      (`tools/e2e/run.py --device`, 29 Oct); the manual checks are still to do
 - [ ] Home Assistant versions: oldest supported (2025.1), current stable, beta. The
       end-to-end test passed on 2025.1.4, 2026.10.4 and the 2026.11 nightly build on 28 Oct.
       Still to run: the 2026.11 beta (due 28 Oct), and the stable release again before v0.2.0
@@ -117,7 +119,12 @@ from GitHub Releases.
       (Home Assistant controls the TV over the network), with Wi-Fi kept optional
 - [x] Ask for "Display over other apps" from the PleatView menu on TVs that have that
       settings screen, with adb only as the fallback
-- [ ] Test plan covers installing with Downloader and the "My Home Assistant" buttons
+- [ ] Test plan covers installing with Downloader and the "My Home Assistant" buttons.
+      Downloader with `pleatview.hustlesman.com/apk`, then discovery and the PIN, worked
+      on the Fire TV on 29 Oct
+- [x] Fixes from the first hardware run: Webpage dashboards (Grafana, OpenSearch…) open
+      the site directly, with the zoom, instead of in Home Assistant's frame; a
+      discovered TV goes straight to the PIN; the setup screen has a QR code for phones
 
 **Exit:** the test plan passes on all four devices, the soak passes, v0.2.0 is released.
 
@@ -143,6 +150,12 @@ requires.
 - [ ] P1 bugs fixed within 48 hours; a beta build every week
 - [ ] Device compatibility table on the website, filled from tester reports
 - [ ] One-press pairing: approve Home Assistant on the TV with OK, instead of typing the PIN
+- [ ] **In Home Assistant's Marketplace.** Home Assistant 2026.11 builds HACS in as
+      *Settings → Marketplace*, which lists the HACS default repositories (checked in the
+      2026.11 nightly; our "Open in HACS" links keep working). Get into the HACS default
+      list: brand images in `custom_components/pleatview/brand/`, validation green with
+      nothing ignored, pull request to `hacs/default`. Then the install guide says
+      Marketplace → PleatView, with HACS for older versions
 
 **Exit:** ≥12 testers active for 14 days, no open P1 bugs, the five most-reported issues
 fixed, v0.3.0 released.
@@ -212,9 +225,8 @@ submitted.
 *Mon 8 Mar → Fri 2 Apr 2027.* Everything listed, documented and supportable.
 
 - [ ] LG and Samsung approvals, with review feedback fixed
-- [ ] HACS default list: brand images, releases, validation green, pull request to
-      `hacs/default`. Add the manifest category `media_entertainment.tv_streaming` once
-      hassfest's published image accepts it.
+- [ ] Add the manifest category `media_entertainment.tv_streaming` once hassfest's
+      published image accepts it
 - [ ] 30-day soak on one Android reference device, one LG TV and one Samsung TV
 - [ ] Website: install guide per platform, automation cookbook, troubleshooting,
       compatibility matrix
@@ -262,3 +274,4 @@ Ideas we'll consider after 1.0, or between milestones if there's slack:
 - Dashboard schedules (for example, a calendar in the morning and energy in the evening)
 - Several Home Assistant servers on one TV
 - Run the end-to-end test in CI every week against the Home Assistant beta (GitHub runners have KVM)
+- A Downloader short code for `pleatview.hustlesman.com/apk` (digits instead of a URL on Fire TV)

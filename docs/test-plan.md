@@ -1,10 +1,12 @@
 # Test plan
 
 What we check before a release and on each reference device. `tools/e2e/run.py` automates
-the items marked **(auto)** on an Android TV emulator against a real Home Assistant; the
-rest need a real device or a person.
+the items marked **(auto)** against a real Home Assistant, on an Android TV emulator or, with
+`--device`, on a real TV over the network. The rest need a person.
 
-Record a manual run as a GitHub issue titled `Test run: vX.Y.Z on <device>`: copy the
+Record a device run as a GitHub issue titled `Test run: vX.Y.Z on <device>`. Start with
+`tools/e2e/run.py --device <TV address> --ha-url … --ha-token-file …` and paste its
+`summary.txt`, which names the TV, Android and Home Assistant versions. Then copy the
 checklist below and tick what passed. Anything that fails gets its own issue.
 
 ## Matrix
@@ -45,6 +47,7 @@ checklist below and tick what passed. Anything that fails gets its own issue.
 - [ ] A text-to-speech announcement plays over a video, which quietens and then recovers
 - [ ] An image from the media browser shows full screen; the browser's *Dashboards* folder switches dashboards
 - [ ] A web page opens full screen and as picture-in-picture (`show_url`)
+- [ ] A Webpage dashboard opens the site itself, not Home Assistant's frame, and keeps its sign-in (try one that needs a cookie, such as OpenSearch's playground) **(auto)**
 
 ### Notifications
 - [ ] `notify.send_message` shows a card that hides itself **(auto)**
