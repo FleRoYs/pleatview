@@ -5,9 +5,6 @@
     "camera",
     "frontend"
   ],
-  "categories": [
-    "media_entertainment.tv_streaming"
-  ],
   "codeowners": [
     "@FleRoYs"
   ],

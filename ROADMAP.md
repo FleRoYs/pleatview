@@ -205,7 +205,8 @@ submitted.
 
 - [ ] LG and Samsung approvals, with review feedback fixed
 - [ ] HACS default list: brand images, releases, validation green, pull request to
-      `hacs/default`
+      `hacs/default`. Add the manifest category `media_entertainment.tv_streaming` once
+      hassfest's published image accepts it.
 - [ ] 30-day soak on one Android reference device, one LG TV and one Samsung TV
 - [ ] Website: install guide per platform, automation cookbook, troubleshooting,
       compatibility matrix
