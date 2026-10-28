@@ -1,0 +1,165 @@
+package com.hustlesman.pleatview
+
+import org.json.JSONObject
+import org.junit.After
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
+import org.junit.Before
+import org.junit.Test
+import java.io.BufferedReader
+import java.io.InputStreamReader
+import java.net.HttpURLConnection
+import java.net.URL
+import java.util.concurrent.CopyOnWriteArrayList
+
+/** Runs the real HTTP server and API routes against a fake backend. */
+class ApiTest {
+    private class FakeBackend : Api.Backend {
+        val commands = CopyOnWriteArrayList<Command>()
+        val listeners = CopyOnWriteArrayList<(String) -> Unit>()
+        var state = """{"power":"on"}"""
+        var config = Config()
+
+        override fun info(): JSONObject = JSONObject().put("id", "abc").put("name", "Test TV")
+        override fun stateJson() = state
+        override fun addStateListener(listener: (String) -> Unit) {
+            listeners += listener
+        }
+        override fun removeStateListener(listener: (String) -> Unit) {
+            listeners -= listener
+        }
+        override fun dispatch(command: Command) {
+            commands += command
+        }
+        override fun config() = config
+        override fun updateConfig(update: JSONObject): Config = config.merge(update).also { config = it }
+
+        fun publish(json: String) {
+            state = json
+            listeners.forEach { it(json) }
+        }
+    }
+
+    private class MemoryStore : Pairing.Store {
+        var json: String? = null
+        override fun loadTokens() = json
+        override fun saveTokens(json: String) {
+            this.json = json
+        }
+    }
+
+    private val backend = FakeBackend()
+    private val pairing = Pairing(MemoryStore())
+    private val server = HttpServer(0, Api(backend, pairing) { "<html>setup</html>".toByteArray() }::handle)
+    private lateinit var base: String
+
+    @Before
+    fun start() {
+        server.start()
+        base = "http://127.0.0.1:${server.localPort}"
+    }
+
+    @After
+    fun stop() = server.stop()
+
+    private data class Reply(val status: Int, val body: String) {
+        val json get() = JSONObject(body)
+    }
+
+    private fun request(method: String, path: String, body: String? = null, token: String? = null): Reply {
+        val connection = URL(base + path).openConnection() as HttpURLConnection
+        connection.requestMethod = method
+        connection.connectTimeout = 2000
+        connection.readTimeout = 4000
+        token?.let { connection.setRequestProperty("Authorization", "Bearer $it") }
+        if (body != null) {
+            connection.doOutput = true
+            connection.setRequestProperty("Content-Type", "application/json")
+            connection.outputStream.use { it.write(body.toByteArray()) }
+        }
+        val status = connection.responseCode
+        val stream = if (status >= 400) connection.errorStream else connection.inputStream
+        val text = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
+        connection.disconnect()
+        return Reply(status, text)
+    }
+
+    private fun pair(): String =
+        request("POST", "/api/pair", """{"pin":"${pairing.pin}","client":"test"}""").json.getString("token")
+
+    @Test
+    fun `info is public and reports pairing`() {
+        val info = request("GET", "/api/info")
+        assertEquals(200, info.status)
+        assertEquals("Test TV", info.json.getString("name"))
+        assertEquals(false, info.json.getBoolean("paired"))
+        assertTrue(request("GET", "/").body.contains("setup"))
+    }
+
+    @Test
+    fun `everything else needs a paired token`() {
+        assertEquals(401, request("GET", "/api/state").status)
+        assertEquals(401, request("GET", "/api/state", token = "forged").status)
+        assertEquals(403, request("POST", "/api/pair", """{"pin":"x"}""").status)
+        val token = pair()
+        val state = request("GET", "/api/state", token = token)
+        assertEquals(200, state.status)
+        assertEquals("on", state.json.getString("power"))
+        assertEquals(true, request("GET", "/api/info").json.getBoolean("paired"))
+    }
+
+    @Test
+    fun `commands are validated then dispatched`() {
+        val token = pair()
+        val ok = request("POST", "/api/command", """{"command":"show_dashboard","path":"/lovelace/1"}""", token)
+        assertEquals(200, ok.status)
+        assertEquals(listOf<Command>(Command.ShowDashboard("/lovelace/1", null)), backend.commands.toList())
+        val bad = request("POST", "/api/command", """{"command":"set_volume","level":7}""", token)
+        assertEquals(400, bad.status)
+        assertTrue(bad.json.getString("error").contains("level"))
+        assertEquals(400, request("POST", "/api/command", "not json", token).status)
+        assertEquals(405, request("GET", "/api/command", token = token).status)
+    }
+
+    @Test
+    fun `config round trip never returns the token`() {
+        val token = pair()
+        val saved = request("POST", "/api/config", """{"ha_url":"http://ha:8123/","ha_token":"llat","rev":"r1"}""", token)
+        assertEquals(200, saved.status)
+        assertEquals("http://ha:8123", saved.json.getString("ha_url"))
+        assertEquals(true, saved.json.getBoolean("ha_token_set"))
+        assertTrue(!saved.body.contains("llat"))
+        assertEquals(400, request("POST", "/api/config", """{"zoom":5}""", token).status)
+    }
+
+    @Test
+    fun `unpair revokes the calling token`() {
+        val token = pair()
+        assertEquals(200, request("POST", "/api/unpair", "", token).status)
+        assertEquals(401, request("GET", "/api/state", token = token).status)
+    }
+
+    @Test(timeout = 10_000)
+    fun `event stream sends current state then updates`() {
+        val token = pair()
+        val connection = URL("$base/api/events").openConnection() as HttpURLConnection
+        connection.setRequestProperty("Authorization", "Bearer $token")
+        connection.readTimeout = 5000
+        assertEquals(200, connection.responseCode)
+        assertTrue(connection.contentType.startsWith("text/event-stream"))
+        val reader = BufferedReader(InputStreamReader(connection.inputStream))
+        fun nextData(): String {
+            while (true) {
+                val line = reader.readLine() ?: error("stream closed")
+                if (line.startsWith("data: ")) return line.removePrefix("data: ")
+            }
+        }
+        assertEquals("""{"power":"on"}""", nextData())
+        // Wait until the stream has registered its listener, then publish.
+        val deadline = System.currentTimeMillis() + 3000
+        while (backend.listeners.isEmpty() && System.currentTimeMillis() < deadline) Thread.sleep(10)
+        backend.publish("""{"power":"standby"}""")
+        assertEquals("""{"power":"standby"}""", nextData())
+        connection.disconnect()
+    }
+}

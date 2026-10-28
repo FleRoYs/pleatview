@@ -1,0 +1,25 @@
+{
+  "domain": "pleatview",
+  "name": "PleatView",
+  "after_dependencies": [
+    "camera",
+    "frontend"
+  ],
+  "codeowners": [
+    "@FleRoYs"
+  ],
+  "config_flow": true,
+  "dependencies": [
+    "http",
+    "media_source"
+  ],
+  "documentation": "https://pleatview.hustlesman.com",
+  "integration_type": "device",
+  "iot_class": "local_push",
+  "issue_tracker": "https://github.com/FleRoYs/pleatview/issues",
+  "requirements": [],
+  "version": "0.1.0",
+  "zeroconf": [
+    "_pleatview._tcp.local."
+  ]
+}

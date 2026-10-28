@@ -1,0 +1,127 @@
+# PleatView control protocol (v1)
+
+The TV app runs a small HTTP server (default port **8765**) and advertises it over
+mDNS as `_pleatview._tcp` with TXT records `id`, `name`, `api` and `version`. The
+Home Assistant integration (or any other client) talks to it with JSON over HTTP.
+
+All responses are JSON unless noted. Errors look like `{"error": "message"}`.
+Each request uses its own connection (`Connection: close`). Request bodies need a
+`Content-Length` and are limited to 256 KiB.
+
+## Pairing and authentication
+
+| Endpoint | Auth | Purpose |
+| --- | --- | --- |
+| `GET /api/info` | none | Identity: `id`, `name`, `manufacturer`, `model`, `app_version`, `api_version`, `paired` |
+| `POST /api/pair` | none | `{"pin": "123456", "client": "Home Assistant"}` → `{"token": "…"}` |
+| `POST /api/unpair` | bearer | Revokes the calling token |
+| `GET /` | none | Phone setup page (it pairs with the PIN itself) |
+
+The 6-digit PIN is shown on the TV's setup screen and in its menu (press Back on
+the home dashboard). It changes after every successful pairing. Wrong PINs return
+`403 {"error": "invalid_pin"}`; after 5 wrong attempts pairing locks for 60 s and
+the PIN changes (`429 {"error": "too_many_attempts", "retry_after": 60}`).
+
+Every other endpoint needs `Authorization: Bearer <token>` and returns `401` without
+a valid one. The TV stores only SHA-256 hashes of tokens and keeps the newest 8.
+
+## State
+
+`GET /api/state` returns the current snapshot. `GET /api/events` is a Server-Sent
+Events stream that sends the full snapshot on connect and after every change
+(`event: state`), plus a `: ping` comment every 20 s.
+
+```json
+{
+  "foreground": true,
+  "power": "on",
+  "view": "dashboard",
+  "url": "http://192.168.1.10:8123/lovelace/0",
+  "dashboard": "/lovelace/0",
+  "ha_connected": true,
+  "auth_error": false,
+  "last_error": null,
+  "overlay": {"kind": "image", "url": "http://…/snapshot.jpg", "mode": "pip"},
+  "media": {
+    "state": "playing",
+    "url": "http://…/master_playlist.m3u8",
+    "mime_type": "application/vnd.apple.mpegurl",
+    "title": "Front door",
+    "artist": null,
+    "image_url": null,
+    "mode": "pip",
+    "position": 12.4,
+    "duration": null,
+    "updated_at": 1761650000.25
+  },
+  "volume": 1.0,
+  "muted": false,
+  "config_rev": "3f9a…",
+  "overlay_permission": false,
+  "app_version": "0.1.0"
+}
+```
+
+- `foreground`: PleatView is the visible app. `power`: `on` or `standby` (blanked).
+- `view`: `setup` (no Home Assistant URL yet) or `dashboard`.
+- `dashboard`: path on Home Assistant currently shown, or null for other sites.
+- `ha_connected`: the Home Assistant frontend's websocket state, from its heartbeat.
+- `media.state`: `playing`, `paused` or `buffering`; `duration` is null for live streams.
+- `overlay_permission`: whether the app may draw over other apps / start itself
+  from the background.
+
+## Commands
+
+`POST /api/command` with `{"command": "<name>", …parameters}`. Invalid commands get
+`400` with a reason. Display commands bring PleatView to the front when it's in the
+background, if Android allows it (see `overlay_permission`).
+
+| Command | Parameters |
+| --- | --- |
+| `show_dashboard` | `path` (path on HA or full URL), `duration`? (s, then return home) |
+| `show_url` | `url`, layout |
+| `show_image` | `url` (image or MJPEG stream), layout |
+| `play_media` | `url` (http(s)/rtsp(s)), `mime_type`?, `title`?, `artist`?, `image_url`?, `loop`?, `volume`? (0–1), `start_position`? (s), `announce`?, layout |
+| `notify` | `message`, `title`?, `image_url`?, `duration`? (s, default 10), `position`? |
+| `play`, `pause`, `stop` | — (`stop` also closes web/image overlays) |
+| `seek` | `position` (s) |
+| `set_volume` | `level` (0–1, PleatView's own playback volume) |
+| `mute` | `muted` (bool) |
+| `home` | — stop media, close overlays, show the home dashboard |
+| `reload` | — reload the dashboard page |
+| `next_dashboard`, `previous_dashboard` | — cycle through configured dashboards |
+| `turn_on`, `turn_off` | — leave / enter standby (black screen, screen may sleep) |
+
+Layout parameters: `mode` (`fullscreen`, `pip`, or `background` for audio),
+`position` (`top-left`, `top-right`, `bottom-left`, `bottom-right`, `center`),
+`size` (picture-in-picture width, 10–100 % of the screen), `duration` (s).
+
+`play_media` picks a player from `mime_type` or the URL's extension: audio plays in
+the background with a now-playing card, video full screen, and images or
+`multipart/x-mixed-replace` (MJPEG) are shown like `show_image`. HLS, DASH, RTSP and
+progressive files are played by ExoPlayer. `announce: true` plays the clip over
+whatever is playing, which is ducked meanwhile.
+
+## Configuration
+
+`GET /api/config` and `POST /api/config` (partial update; unknown keys are rejected).
+
+| Key | Default | Meaning |
+| --- | --- | --- |
+| `device_name` | TV's name | Name advertised over mDNS |
+| `ha_url` | — | Home Assistant base URL; empty shows the setup screen |
+| `ha_token` | — | Long-lived access token, write-only (`ha_token_set` is returned instead) |
+| `dashboards` | `[]` | `[{"title": "Cameras", "path": "/dashboard-cams"}]` |
+| `home_dashboard` | first dashboard, else `/` | Path or URL |
+| `kiosk` | `full` | `full` hides the sidebar and header, `sidebar`, or `off` |
+| `zoom` | 100 | Page zoom in percent (25–400); lower fits more on screen |
+| `rotate_seconds` | 0 | Cycle `dashboards` when nobody is using the remote |
+| `return_home_minutes` | 0 | Return home this long after remote-control browsing |
+| `reload_minutes` | 0 | Periodic full reload |
+| `keep_screen_on` | true | Stop the screensaver while a dashboard is shown |
+| `launch_on_boot` | true | Open after boot (needs `overlay_permission`) |
+| `rev` | — | Opaque revision set by Home Assistant; any update without `rev` clears it |
+
+When `ha_token` is set, the dashboard WebView answers the Home Assistant frontend's
+external-auth requests with it, so no login page is shown. Without it, sign in on
+the TV once and the frontend keeps its own session.

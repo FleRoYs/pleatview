@@ -1,0 +1,535 @@
+package com.hustlesman.pleatview
+
+import android.annotation.SuppressLint
+import android.app.Activity
+import android.content.Context
+import android.graphics.Bitmap
+import android.net.ConnectivityManager
+import android.net.Network
+import android.os.Handler
+import android.os.Looper
+import android.os.SystemClock
+import android.util.Log
+import android.webkit.ConsoleMessage
+import android.webkit.JavascriptInterface
+import android.webkit.PermissionRequest
+import android.webkit.RenderProcessGoneDetail
+import android.webkit.WebChromeClient
+import android.webkit.WebResourceError
+import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
+import android.webkit.WebSettings
+import android.webkit.WebView
+import android.webkit.WebViewClient
+import android.widget.FrameLayout
+import androidx.core.content.ContextCompat
+import androidx.core.graphics.createBitmap
+import androidx.webkit.ScriptHandler
+import androidx.webkit.WebViewCompat
+import androidx.webkit.WebViewFeature
+import org.json.JSONObject
+import kotlin.math.roundToInt
+
+/**
+ * Owns the dashboard WebView and keeps it alive: signs the Home Assistant frontend in
+ * with the provisioned token, retries when HA is unreachable, recreates the WebView
+ * when its renderer dies, and reloads pages that stop responding.
+ */
+class DashboardController(
+    private val activity: Activity,
+    private val container: FrameLayout,
+    private val hub: Hub,
+    private val callbacks: Callbacks,
+) {
+    interface Callbacks {
+        /** A problem worth showing on screen, or null when it's resolved. */
+        fun onStatus(message: String?)
+    }
+
+    private val main = Handler(Looper.getMainLooper())
+    private var config = Config()
+    private var webView: WebView? = null
+    private var scriptHandler: ScriptHandler? = null
+    private var scriptTemplate: String? = null
+    private var listenerMode = false
+
+    private var currentUrl: String? = null
+    private var reportedPath: String? = null
+    private var loadStartedAt = 0L
+    private var lastHeartbeat = 0L
+    private var disconnectedSince = 0L
+    private var ready = false
+    private var failed = false
+    private var paused = false
+    private var clearHistoryOnLoad = false
+    private var retryAttempt = 0
+    private val forcedAuth = ArrayDeque<Long>()
+    private var networkCallback: ConnectivityManager.NetworkCallback? = null
+
+    /** The last dashboard PleatView navigated to on its own (not by remote-control browsing). */
+    var lastTarget: String = "/"
+        private set
+
+    private val retryRunnable = Runnable { currentUrl?.let(::load) }
+    private val reloadRunnable = Runnable {
+        Log.i(TAG, "Periodic reload")
+        reload()
+        scheduleReload()
+    }
+    private val watchdogRunnable = object : Runnable {
+        override fun run() {
+            watchdog()
+            main.postDelayed(this, WATCHDOG_INTERVAL_MS)
+        }
+    }
+
+    init {
+        if (BuildConfig.DEBUG) WebView.setWebContentsDebuggingEnabled(true)
+    }
+
+    fun start(config: Config) {
+        this.config = config
+        create()
+        navigate(config.homePath)
+        main.removeCallbacks(watchdogRunnable)
+        main.postDelayed(watchdogRunnable, WATCHDOG_INTERVAL_MS)
+        scheduleReload()
+        registerNetworkCallback()
+    }
+
+    fun applyConfig(old: Config, new: Config) {
+        config = new
+        if (old.haUrl != new.haUrl || old.haToken != new.haToken || old.zoom != new.zoom || old.kiosk != new.kiosk) {
+            hub.update { authError = false }
+            create()
+            navigate(new.homePath)
+        } else if (old.homePath != new.homePath && lastTarget == old.homePath) {
+            navigate(new.homePath)
+        }
+        if (old.reloadMinutes != new.reloadMinutes) scheduleReload()
+    }
+
+    /** Shows a dashboard path (or URL), in place when the HA frontend is already running. */
+    fun navigate(target: String) {
+        lastTarget = target
+        val url = config.resolve(target)
+        val view = webView ?: return
+        if (ready && !failed && config.isHaUrl(url) && config.isHaUrl(view.url)) {
+            val path = Config.pathOf(url)
+            view.evaluateJavascript("window.__pleatview&&window.__pleatview.navigate(${JSONObject.quote(path)})", null)
+            currentUrl = url
+            view.clearHistory()
+            publishLocation(path)
+        } else {
+            load(url)
+        }
+    }
+
+    fun reload() {
+        val view = webView ?: return
+        val url = currentUrl ?: config.resolve(config.homePath)
+        if (failed || view.url.isNullOrEmpty() || view.url == BLANK) {
+            load(url)
+        } else {
+            ready = false
+            lastHeartbeat = 0
+            loadStartedAt = SystemClock.elapsedRealtime()
+            view.reload()
+        }
+    }
+
+    /** Back inside the page (closes HA dialogs, undoes remote-control browsing). */
+    fun goBack(): Boolean {
+        val view = webView ?: return false
+        if (!view.canGoBack()) return false
+        view.goBack()
+        return true
+    }
+
+    fun focus() {
+        webView?.requestFocus()
+    }
+
+    fun onResume() {
+        paused = false
+        // Timers may have been throttled while hidden; give the page a fresh grace period.
+        val now = SystemClock.elapsedRealtime()
+        if (lastHeartbeat != 0L) lastHeartbeat = now
+        loadStartedAt = now
+        disconnectedSince = 0
+        webView?.onResume()
+    }
+
+    fun onPause() {
+        paused = true
+        webView?.onPause()
+    }
+
+    fun destroy() {
+        main.removeCallbacks(retryRunnable)
+        main.removeCallbacks(reloadRunnable)
+        main.removeCallbacks(watchdogRunnable)
+        networkCallback?.let { cb ->
+            runCatching { connectivity().unregisterNetworkCallback(cb) }
+        }
+        networkCallback = null
+        destroyWebView()
+    }
+
+    // ---- WebView lifecycle --------------------------------------------------------------
+
+    private fun create() {
+        destroyWebView()
+        ready = false
+        failed = false
+        lastHeartbeat = 0
+        disconnectedSince = 0
+        forcedAuth.clear()
+        val view = try {
+            WebView(activity)
+        } catch (e: Exception) {
+            // WebView missing or mid-update.
+            Log.e(TAG, "WebView unavailable", e)
+            callbacks.onStatus(activity.getString(R.string.status_no_webview))
+            main.postDelayed({ create(); navigate(lastTarget) }, 30_000)
+            return
+        }
+        configure(view)
+        installBridge(view)
+        container.addView(view, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
+        webView = view
+        view.requestFocus()
+    }
+
+    private fun destroyWebView() {
+        main.removeCallbacks(retryRunnable)
+        scriptHandler?.let { runCatching { it.remove() } }
+        scriptHandler = null
+        webView?.let {
+            container.removeView(it)
+            it.stopLoading()
+            it.destroy()
+        }
+        webView = null
+    }
+
+    @SuppressLint("SetJavaScriptEnabled")
+    private fun configure(view: WebView) {
+        view.setBackgroundColor(ContextCompat.getColor(activity, R.color.background))
+        view.isVerticalScrollBarEnabled = false
+        view.isHorizontalScrollBarEnabled = false
+        view.isFocusable = true
+        view.isFocusableInTouchMode = true
+        view.settings.apply {
+            javaScriptEnabled = true
+            domStorageEnabled = true
+            mediaPlaybackRequiresUserGesture = false // camera cards autoplay
+            mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
+            useWideViewPort = true
+            loadWithOverviewMode = true
+            textZoom = 100
+            userAgentString = "$userAgentString PleatView/${BuildConfig.VERSION_NAME}"
+        }
+        view.webViewClient = Client()
+        view.webChromeClient = Chrome()
+    }
+
+    /**
+     * The bridge is only exposed to the Home Assistant origin. On current WebViews it is
+     * a WebMessageListener plus a document-start script scoped to that origin; older
+     * WebViews fall back to JavaScript interfaces that check the page origin per call.
+     */
+    @SuppressLint("RequiresFeature") // the reply proxy only exists when WEB_MESSAGE_LISTENER does
+    private fun installBridge(view: WebView) {
+        val origin = config.haOrigin ?: return
+        listenerMode = false
+        if (WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER) &&
+            WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)
+        ) {
+            listenerMode = true
+            WebViewCompat.addWebMessageListener(view, "pleatviewBridge", setOf(origin)) { _, message, _, isMainFrame, reply ->
+                onBridgeMessage(message.data ?: return@addWebMessageListener, isMainFrame) { reply.postMessage(it) }
+            }
+            scriptHandler = WebViewCompat.addDocumentStartJavaScript(view, script(), setOf(origin))
+        } else {
+            if (config.haToken.isNotEmpty()) view.addJavascriptInterface(LegacyAuthBridge(), "externalApp")
+            view.addJavascriptInterface(LegacyBridge(), "pleatviewNative")
+        }
+    }
+
+    private fun script(): String {
+        val template = scriptTemplate
+            ?: activity.assets.open("pleatview.js").bufferedReader().use { it.readText() }.also { scriptTemplate = it }
+        val pageConfig = JSONObject()
+            .put("externalAuth", config.haToken.isNotEmpty())
+            .put("kiosk", config.kiosk)
+            .put("viewportWidth", viewportWidth())
+        return template.replace("__PLEATVIEW_CONFIG__", pageConfig.toString())
+    }
+
+    /** CSS width that makes the dashboard render at [Config.zoom] percent. 0 keeps the page default. */
+    private fun viewportWidth(): Int {
+        if (config.zoom == 100) return 0
+        val metrics = activity.resources.displayMetrics
+        val widthPx = container.width.takeIf { it > 0 } ?: metrics.widthPixels
+        return (widthPx / metrics.density * 100f / config.zoom).roundToInt()
+    }
+
+    private fun load(url: String) {
+        val view = webView ?: return
+        main.removeCallbacks(retryRunnable)
+        currentUrl = url
+        failed = false
+        ready = false
+        lastHeartbeat = 0
+        loadStartedAt = SystemClock.elapsedRealtime()
+        clearHistoryOnLoad = true
+        view.loadUrl(url)
+        publishLocation(null)
+    }
+
+    // ---- Bridge -----------------------------------------------------------------------
+
+    private fun onBridgeMessage(raw: String, isMainFrame: Boolean, reply: (String) -> Unit) {
+        val message = runCatching { JSONObject(raw) }.getOrNull() ?: return
+        when (message.optString("type")) {
+            "getExternalAuth" -> {
+                val payload = message.optJSONObject("payload") ?: JSONObject()
+                val callback = payload.optString("callback")
+                if (CALLBACK_NAME.matches(callback)) reply(authReply(callback, payload.optBoolean("force")).toString())
+            }
+            "revokeExternalAuth" -> {
+                val callback = message.optJSONObject("payload")?.optString("callback").orEmpty()
+                if (CALLBACK_NAME.matches(callback)) {
+                    reply(JSONObject().put("type", "auth").put("callback", callback).put("success", true).toString())
+                }
+            }
+            "status" -> if (isMainFrame) onHeartbeat(message)
+        }
+    }
+
+    /** Answer to the frontend's token request. A forced refresh means HA rejected the token. */
+    private fun authReply(callback: String, force: Boolean): JSONObject {
+        val reply = JSONObject().put("type", "auth").put("callback", callback)
+        val now = SystemClock.elapsedRealtime()
+        if (force) {
+            forcedAuth.addLast(now)
+            while (forcedAuth.isNotEmpty() && now - forcedAuth.first() > 60_000) forcedAuth.removeFirst()
+        }
+        if (config.haToken.isEmpty() || forcedAuth.size > 1) {
+            Log.w(TAG, "Home Assistant rejected the access token")
+            hub.update { authError = true }
+            callbacks.onStatus(activity.getString(R.string.status_auth_failed))
+            return reply.put("success", false).put("data", JSONObject().put("message", "auth_invalid"))
+        }
+        return reply.put("success", true).put(
+            "data", JSONObject().put("access_token", config.haToken).put("expires_in", TOKEN_LIFETIME_SECONDS),
+        )
+    }
+
+    private fun onHeartbeat(message: JSONObject) {
+        val now = SystemClock.elapsedRealtime()
+        lastHeartbeat = now
+        if (message.optBoolean("ready")) ready = true
+        val connected = if (message.isNull("connected")) null else message.optBoolean("connected")
+        disconnectedSince = when {
+            connected != false -> 0L
+            disconnectedSince == 0L -> now
+            else -> disconnectedSince
+        }
+        reportedPath = message.optString("path").ifEmpty { null }
+        publishLocation(reportedPath)
+        hub.update {
+            haConnected = connected
+            if (connected == true) {
+                authError = false
+                lastError = null
+            }
+        }
+        if (connected == true) callbacks.onStatus(null)
+    }
+
+    private inner class LegacyAuthBridge {
+        @JavascriptInterface
+        fun getExternalAuth(payload: String?) {
+            main.post { legacyAuth(payload, revoke = false) }
+        }
+
+        @JavascriptInterface
+        fun revokeExternalAuth(payload: String?) {
+            main.post { legacyAuth(payload, revoke = true) }
+        }
+    }
+
+    private inner class LegacyBridge {
+        @JavascriptInterface
+        fun postMessage(message: String?) {
+            main.post {
+                if (message != null && config.isHaUrl(webView?.url)) {
+                    onBridgeMessage(message, isMainFrame = true) { reply ->
+                        webView?.evaluateJavascript("window.__pleatview&&window.__pleatview.receive($reply)", null)
+                    }
+                }
+            }
+        }
+    }
+
+    private fun legacyAuth(raw: String?, revoke: Boolean) {
+        if (!config.isHaUrl(webView?.url)) return
+        val payload = runCatching { JSONObject(raw ?: "{}") }.getOrDefault(JSONObject())
+        val callback = payload.optString("callback")
+        if (!CALLBACK_NAME.matches(callback)) return
+        val reply = if (revoke) {
+            JSONObject().put("success", true).put("data", JSONObject.NULL)
+        } else {
+            authReply(callback, payload.optBoolean("force"))
+        }
+        val js = "(function(){var f=window[${JSONObject.quote(callback)}];" +
+            "if(typeof f==='function')f(${reply.getBoolean("success")},${reply.opt("data")});})()"
+        webView?.evaluateJavascript(js, null)
+    }
+
+    // ---- Health ---------------------------------------------------------------------
+
+    private fun watchdog() {
+        val view = webView ?: return
+        if (paused || failed || !config.isHaUrl(view.url)) return
+        val now = SystemClock.elapsedRealtime()
+        val silentSince = if (lastHeartbeat != 0L) lastHeartbeat else loadStartedAt
+        when {
+            silentSince != 0L && now - silentSince > STALL_MS -> {
+                Log.w(TAG, "Dashboard stopped responding; reloading")
+                reload()
+            }
+            disconnectedSince != 0L && now - disconnectedSince > DISCONNECTED_RELOAD_MS -> {
+                Log.w(TAG, "Lost the Home Assistant connection for too long; reloading")
+                disconnectedSince = 0
+                reload()
+            }
+        }
+    }
+
+    private fun onLoadFailed(reason: CharSequence?) {
+        if (failed) return
+        failed = true
+        ready = false
+        val delay = RETRY_DELAYS_SECONDS[minOf(retryAttempt, RETRY_DELAYS_SECONDS.size - 1)]
+        retryAttempt++
+        Log.w(TAG, "Dashboard failed to load: $reason; retrying in ${delay}s")
+        callbacks.onStatus(activity.getString(R.string.status_unreachable, Config.originOf(config.haUrl) ?: config.haUrl, delay))
+        hub.update {
+            lastError = "Can't load ${currentUrl.orEmpty()}: $reason"
+            haConnected = false
+        }
+        webView?.loadUrl(BLANK) // hide the browser's error page
+        main.removeCallbacks(retryRunnable)
+        main.postDelayed(retryRunnable, delay * 1000L)
+    }
+
+    private fun scheduleReload() {
+        main.removeCallbacks(reloadRunnable)
+        if (config.reloadMinutes > 0) main.postDelayed(reloadRunnable, config.reloadMinutes * 60_000L)
+    }
+
+    private fun registerNetworkCallback() {
+        if (networkCallback != null) return
+        val callback = object : ConnectivityManager.NetworkCallback() {
+            override fun onAvailable(network: Network) {
+                main.post {
+                    if (failed) {
+                        retryAttempt = 0
+                        main.removeCallbacks(retryRunnable)
+                        main.postDelayed(retryRunnable, 1_000)
+                    }
+                }
+            }
+        }
+        try {
+            connectivity().registerDefaultNetworkCallback(callback)
+            networkCallback = callback
+        } catch (e: Exception) {
+            Log.w(TAG, "Could not watch network changes", e)
+        }
+    }
+
+    private fun connectivity() = activity.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+
+    private fun publishLocation(path: String?) {
+        val url = currentUrl
+        hub.update {
+            view = StateModel.VIEW_DASHBOARD
+            this.url = url
+            dashboard = when {
+                path != null -> path
+                url != null && config.isHaUrl(url) -> Config.pathOf(url)
+                else -> null
+            }
+        }
+    }
+
+    private inner class Client : WebViewClient() {
+        override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
+            val scheme = request.url.scheme?.lowercase()
+            return scheme != "http" && scheme != "https" // no intent://, tel:, market: … on a TV
+        }
+
+        override fun onPageFinished(view: WebView, url: String?) {
+            if (view !== webView || url == BLANK) return
+            if (!listenerMode && config.isHaUrl(url)) view.evaluateJavascript(script(), null)
+            if (clearHistoryOnLoad) {
+                view.clearHistory()
+                clearHistoryOnLoad = false
+            }
+            if (!failed) {
+                retryAttempt = 0
+                callbacks.onStatus(null)
+            }
+        }
+
+        override fun onReceivedError(view: WebView, request: WebResourceRequest, error: WebResourceError) {
+            if (view === webView && request.isForMainFrame) onLoadFailed(error.description)
+        }
+
+        override fun onReceivedHttpError(view: WebView, request: WebResourceRequest, response: WebResourceResponse) {
+            if (view === webView && request.isForMainFrame && response.statusCode >= 500) {
+                onLoadFailed("HTTP ${response.statusCode}")
+            }
+        }
+
+        override fun onRenderProcessGone(view: WebView, detail: RenderProcessGoneDetail): Boolean {
+            if (view === webView) {
+                Log.w(TAG, "Dashboard renderer gone; recreating")
+                val target = currentUrl
+                destroyWebView()
+                main.postDelayed({
+                    create()
+                    load(target ?: config.resolve(config.homePath))
+                }, 1_000)
+            }
+            return true
+        }
+    }
+
+    private class Chrome : WebChromeClient() {
+        // Without this, Android WebView shows a grey "play" poster before videos start.
+        override fun getDefaultVideoPoster(): Bitmap = createBitmap(1, 1)
+
+        override fun onPermissionRequest(request: PermissionRequest) = request.deny()
+
+        override fun onConsoleMessage(message: ConsoleMessage): Boolean {
+            if (BuildConfig.DEBUG) Log.d(TAG, "[web] ${message.message()} (${message.sourceId()}:${message.lineNumber()})")
+            return true
+        }
+    }
+
+    companion object {
+        private const val TAG = "PleatView"
+        private const val BLANK = "about:blank"
+        private const val TOKEN_LIFETIME_SECONDS = 1800
+        private const val WATCHDOG_INTERVAL_MS = 30_000L
+        private const val STALL_MS = 120_000L
+        private const val DISCONNECTED_RELOAD_MS = 5 * 60_000L
+        private val RETRY_DELAYS_SECONDS = intArrayOf(3, 5, 10, 20, 30, 60)
+        private val CALLBACK_NAME = Regex("^[A-Za-z_$][A-Za-z0-9_$]{0,63}$")
+    }
+}

@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PleatView setup</title>
+<style>
+  :root { color-scheme: light dark; --accent: #18bcf2; --bg: #f4f6f8; --card: #fff; --text: #1c2226; --muted: #5f6b73; --border: #d6dde2; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #0f1417; --card: #1b2328; --text: #eef2f4; --muted: #9aa7ae; --border: #2c373e; } }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 16px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); }
+  main { max-width: 640px; margin: 0 auto; padding: 24px 16px 48px; }
+  h1 { margin: 0; color: var(--accent); font-size: 28px; }
+  h2 { font-size: 18px; margin: 28px 0 10px; }
+  .sub { margin: 2px 0 20px; color: var(--muted); }
+  section { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 18px; }
+  label { display: block; margin: 0 0 14px; font-weight: 600; font-size: 14px; }
+  label small { display: block; font-weight: 400; color: var(--muted); margin-top: 4px; }
+  input, select, textarea { display: block; width: 100%; margin-top: 6px; padding: 10px 12px; font: inherit; color: inherit;
+    background: transparent; border: 1px solid var(--border); border-radius: 8px; }
+  textarea { font-family: ui-monospace, Menlo, monospace; font-size: 14px; }
+  .check { display: flex; align-items: center; gap: 10px; font-weight: 500; }
+  .check input { width: auto; margin: 0; }
+  .row { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 0 14px; }
+  button { font: inherit; font-weight: 600; padding: 10px 18px; border: 0; border-radius: 8px; background: var(--accent); color: #062430; cursor: pointer; }
+  button.secondary { background: transparent; color: var(--text); border: 1px solid var(--border); }
+  .actions { display: flex; flex-wrap: wrap; gap: 8px; }
+  .error { color: #e5484d; min-height: 1.4em; margin: 10px 0 0; }
+  .ok { color: #30a46c; margin-left: 10px; }
+  .note { color: var(--muted); font-size: 14px; }
+  footer { margin-top: 28px; color: var(--muted); font-size: 14px; }
+  footer a { color: var(--accent); }
+  #pin { font-size: 28px; letter-spacing: .3em; text-align: center; font-family: ui-monospace, Menlo, monospace; }
+</style>
+</head>
+<body>
+<main>
+  <h1>PleatView</h1>
+  <p class="sub" id="device">Connecting…</p>
+
+  <section id="pair">
+    <form id="pair-form">
+      <label>PIN shown on the TV
+        <input id="pin" inputmode="numeric" autocomplete="one-time-code" maxlength="7" placeholder="000 000" required>
+      </label>
+      <button>Connect</button>
+      <p class="error" id="pair-error"></p>
+    </form>
+  </section>
+
+  <div id="settings" hidden>
+    <p class="note" id="managed" hidden>This TV is managed by the PleatView integration in Home Assistant. Settings saved here are replaced the next time Home Assistant connects; change them in the integration's options instead.</p>
+    <section>
+      <form id="config-form">
+        <label>TV name <input name="device_name" placeholder="Uses the TV's device name"></label>
+        <label>Home Assistant URL
+          <input name="ha_url" type="url" placeholder="http://homeassistant.local:8123">
+        </label>
+        <label>Long-lived access token
+          <input name="ha_token" type="password" autocomplete="off" placeholder="Leave empty to keep the current token">
+          <small id="token-state"></small>
+          <small>Create one in Home Assistant: your profile → Security → Long-lived access tokens. Without a token you sign in on the TV with the remote.</small>
+        </label>
+        <label>Home dashboard
+          <input name="home_dashboard" placeholder="/lovelace/0 (empty = Home Assistant default)">
+        </label>
+        <label>Dashboards
+          <textarea name="dashboards" rows="4" placeholder="Overview = /lovelace/0&#10;Cameras = /dashboard-cameras/0"></textarea>
+          <small>One per line as <code>Title = /path</code>. Used for rotation, the TV menu and channel up/down.</small>
+        </label>
+        <div class="row">
+          <label>Kiosk mode
+            <select name="kiosk">
+              <option value="full">Hide sidebar and header</option>
+              <option value="sidebar">Hide sidebar</option>
+              <option value="off">Off</option>
+            </select>
+          </label>
+          <label>Zoom (%)
+            <input name="zoom" type="number" min="25" max="400" step="5">
+            <small>Below 100 fits more cards on screen.</small>
+          </label>
+        </div>
+        <div class="row">
+          <label>Rotate dashboards (seconds) <input name="rotate_seconds" type="number" min="0"><small>0 = off</small></label>
+          <label>Return home after (idle minutes) <input name="return_home_minutes" type="number" min="0"><small>0 = never</small></label>
+          <label>Reload every (minutes) <input name="reload_minutes" type="number" min="0"><small>0 = never</small></label>
+        </div>
+        <label class="check"><input type="checkbox" name="keep_screen_on"> Keep the screen on</label>
+        <label class="check"><input type="checkbox" name="launch_on_boot"> Open PleatView when the TV starts</label>
+        <button>Save</button><span class="ok" id="saved"></span>
+        <p class="error" id="config-error"></p>
+      </form>
+    </section>
+
+    <h2>Try it</h2>
+    <section>
+      <div class="actions">
+        <button class="secondary" data-command="home">Home dashboard</button>
+        <button class="secondary" data-command="reload">Reload</button>
+        <button class="secondary" data-command="next_dashboard">Next dashboard</button>
+        <button class="secondary" data-command="notify">Test notification</button>
+      </div>
+      <p class="error" id="action-error"></p>
+    </section>
+  </div>
+  <footer>Help and documentation: <a href="https://pleatview.hustlesman.com">pleatview.hustlesman.com</a></footer>
+</main>
+<script>
+"use strict";
+const $ = (selector) => document.querySelector(selector);
+let token = sessionStorage.getItem("pleatview-token");
+
+async function api(path, options = {}) {
+  const headers = { "Content-Type": "application/json" };
+  if (token) headers.Authorization = "Bearer " + token;
+  const response = await fetch(path, { ...options, headers });
+  const body = await response.json().catch(() => ({}));
+  if (response.status === 401) {
+    token = null;
+    sessionStorage.removeItem("pleatview-token");
+    showPairing();
+    throw new Error("The pairing expired. Enter the PIN again.");
+  }
+  if (!response.ok) throw new Error(body.error || response.statusText);
+  return body;
+}
+
+function showPairing() {
+  $("#pair").hidden = false;
+  $("#settings").hidden = true;
+  $("#pin").focus();
+}
+
+function dashboardsToText(list) {
+  return list.map((d) => (d.title && d.title !== d.path ? d.title + " = " + d.path : d.path)).join("\n");
+}
+
+function textToDashboards(text) {
+  return text.split("\n").map((line) => line.trim()).filter(Boolean).map((line) => {
+    const at = line.indexOf("=");
+    if (at < 0) return { title: line, path: line };
+    return { title: line.slice(0, at).trim(), path: line.slice(at + 1).trim() };
+  });
+}
+
+async function showSettings() {
+  const config = await api("/api/config");
+  const form = $("#config-form");
+  for (const name of ["device_name", "ha_url", "home_dashboard", "kiosk", "zoom", "rotate_seconds", "return_home_minutes", "reload_minutes"]) {
+    form.elements[name].value = config[name] ?? "";
+  }
+  form.elements.keep_screen_on.checked = config.keep_screen_on;
+  form.elements.launch_on_boot.checked = config.launch_on_boot;
+  form.elements.dashboards.value = dashboardsToText(config.dashboards || []);
+  form.elements.ha_token.value = "";
+  $("#token-state").textContent = config.ha_token_set ? "A token is stored on the TV." : "No token stored yet.";
+  $("#managed").hidden = !config.rev;
+  $("#pair").hidden = true;
+  $("#settings").hidden = false;
+}
+
+$("#pair-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  $("#pair-error").textContent = "";
+  try {
+    const result = await api("/api/pair", {
+      method: "POST",
+      body: JSON.stringify({ pin: $("#pin").value, client: "Setup page" }),
+    });
+    token = result.token;
+    sessionStorage.setItem("pleatview-token", token);
+    await showSettings();
+  } catch (error) {
+    const messages = { invalid_pin: "That PIN doesn't match the one on the TV.", too_many_attempts: "Too many attempts. Wait a minute and use the new PIN on the TV." };
+    $("#pair-error").textContent = messages[error.message] || error.message;
+  }
+});
+
+$("#config-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  $("#config-error").textContent = "";
+  $("#saved").textContent = "";
+  const form = event.target.elements;
+  const update = {
+    device_name: form.device_name.value,
+    ha_url: form.ha_url.value,
+    home_dashboard: form.home_dashboard.value,
+    dashboards: textToDashboards(form.dashboards.value),
+    kiosk: form.kiosk.value,
+    zoom: Number(form.zoom.value || 100),
+    rotate_seconds: Number(form.rotate_seconds.value || 0),
+    return_home_minutes: Number(form.return_home_minutes.value || 0),
+    reload_minutes: Number(form.reload_minutes.value || 0),
+    keep_screen_on: form.keep_screen_on.checked,
+    launch_on_boot: form.launch_on_boot.checked,
+  };
+  if (form.ha_token.value.trim()) update.ha_token = form.ha_token.value.trim();
+  try {
+    await api("/api/config", { method: "POST", body: JSON.stringify(update) });
+    $("#saved").textContent = "Saved";
+    await showSettings();
+  } catch (error) {
+    $("#config-error").textContent = error.message;
+  }
+});
+
+document.querySelectorAll("[data-command]").forEach((button) => {
+  button.addEventListener("click", async () => {
+    $("#action-error").textContent = "";
+    const command = button.dataset.command;
+    const body = command === "notify"
+      ? { command, title: "PleatView", message: "Notifications from Home Assistant appear here." }
+      : { command };
+    try {
+      await api("/api/command", { method: "POST", body: JSON.stringify(body) });
+    } catch (error) {
+      $("#action-error").textContent = error.message;
+    }
+  });
+});
+
+(async () => {
+  try {
+    const info = await api("/api/info");
+    $("#device").textContent = info.name + " · PleatView " + info.app_version;
+  } catch (error) {
+    $("#device").textContent = "Can't reach the TV.";
+  }
+  if (token) {
+    try { await showSettings(); return; } catch (error) { /* fall through to pairing */ }
+  }
+  showPairing();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,51 @@
+"""Constants for the PleatView integration."""
+
+from typing import Final
+
+DOMAIN: Final = "pleatview"
+DEFAULT_PORT: Final = 8765
+
+# Config entry data
+CONF_TOKEN: Final = "token"  # control-API token issued by the TV when pairing
+CONF_AUTH_MODE: Final = "auth_mode"  # how the TV signs in to Home Assistant
+CONF_HA_TOKEN: Final = "ha_token"  # long-lived access token handed to the TV
+CONF_USER_ID: Final = "user_id"  # user created for the TV in managed mode
+CONF_ALLOW_CONTROL: Final = "allow_control"
+
+AUTH_MANAGED: Final = "managed"
+AUTH_TOKEN: Final = "token"
+AUTH_NONE: Final = "none"
+
+# Options, mirrored to the TV app's configuration
+CONF_HA_URL: Final = "ha_url"
+CONF_HOME_DASHBOARD: Final = "home_dashboard"
+CONF_DASHBOARDS: Final = "dashboards"
+CONF_KIOSK: Final = "kiosk"
+CONF_ZOOM: Final = "zoom"
+CONF_ROTATE_SECONDS: Final = "rotate_seconds"
+CONF_RETURN_HOME_MINUTES: Final = "return_home_minutes"
+CONF_RELOAD_MINUTES: Final = "reload_minutes"
+CONF_KEEP_SCREEN_ON: Final = "keep_screen_on"
+CONF_LAUNCH_ON_BOOT: Final = "launch_on_boot"
+
+KIOSK_MODES: Final = ["full", "sidebar", "off"]
+
+DEFAULT_OPTIONS: Final = {
+    CONF_KIOSK: "full",
+    CONF_ZOOM: 100,
+    CONF_ROTATE_SECONDS: 0,
+    CONF_RETURN_HOME_MINUTES: 0,
+    CONF_RELOAD_MINUTES: 0,
+    CONF_KEEP_SCREEN_ON: True,
+    CONF_LAUNCH_ON_BOOT: True,
+}
+
+# Media types understood by media_player.play_media in addition to the standard ones
+MEDIA_TYPE_DASHBOARD: Final = "dashboard"
+MEDIA_TYPE_WEB: Final = "web"
+DASHBOARDS_ROOT: Final = "pleatview://dashboards"
+
+MODES: Final = ["fullscreen", "pip", "background"]
+POSITIONS: Final = ["top-left", "top-right", "bottom-left", "bottom-right", "center"]
+
+HLS_MIME: Final = "application/vnd.apple.mpegurl"
