@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PleatView support</title>
+<link rel="stylesheet" href="page.css">
+</head>
+<body>
+<main>
+  <p><a href="/">← PleatView</a></p>
+  <h1>Support</h1>
+  <p class="muted">PleatView is a free, open-source project by Hustlesman. Here's how to get help.</p>
+
+  <div class="box">
+    <strong>Setting up?</strong> Follow the <a href="https://github.com/FleRoYs/pleatview#install">install guide</a>: three steps, no computer needed for the TV.<br>
+    <strong>Something wrong?</strong> <a href="https://github.com/FleRoYs/pleatview/issues/new">Open an issue on GitHub</a>.<br>
+    <strong>Something private</strong> (privacy, a donation, a security problem)? Email <a href="mailto:privacy@hustlesman.com">privacy@hustlesman.com</a>.
+  </div>
+
+  <h2>Common questions</h2>
+
+  <h3>Home Assistant doesn't find the TV</h3>
+  <p>Open PleatView on the TV first. Discovery doesn't cross separate networks or VLANs. If yours are split, add the PleatView integration manually in Home Assistant (<em>Settings → Devices &amp; services → Add integration</em>) with the address shown on the TV.</p>
+
+  <h3>The TV says Home Assistant rejected the access token</h3>
+  <p>In Home Assistant, open the PleatView integration and choose <em>Reload</em> from its ⋮ menu; it issues a new token. If you use your own long-lived token, enter a new one with <em>Reconfigure</em>.</p>
+
+  <h3>Home Assistant can't bring PleatView to the front, or notifications only show while it's open</h3>
+  <p>Android only allows this for apps that may display over other apps. Google TV has no settings screen for it, so grant it once from a computer:</p>
+  <p><code>adb shell appops set com.hustlesman.pleatview SYSTEM_ALERT_WINDOW allow</code></p>
+
+  <h3>The screen still goes dark or the screensaver starts</h3>
+  <p>PleatView keeps the screen on while a dashboard is showing. The TV's own sleep timer and energy-saving settings can still switch the panel off; set them to never for a permanent display.</p>
+
+  <h3>A camera doesn't play</h3>
+  <p>Live video needs Home Assistant's <em>stream</em> integration, which is part of the default configuration. Cameras that can't stream are shown as a sequence of still images instead.</p>
+
+  <h3>I cleared PleatView's data or reinstalled it</h3>
+  <p>Home Assistant notices and asks for the new PIN under <em>Settings → Devices &amp; services</em>. After that, all settings come back automatically.</p>
+
+  <h3>How do I remove PleatView?</h3>
+  <p>Remove the integration in Home Assistant, which deletes the user it created and resets the TV. Then uninstall the app on the TV.</p>
+
+  <h2>Reporting a problem</h2>
+  <p><a href="https://github.com/FleRoYs/pleatview/issues/new">Open an issue on GitHub</a> and include:</p>
+  <ul>
+    <li>your TV or streaming device and its Android TV version,</li>
+    <li>the PleatView version (in its menu: press Back on the home dashboard),</li>
+    <li>your Home Assistant version,</li>
+    <li>what you did, what you expected, and what happened instead.</li>
+  </ul>
+  <p>PleatView is maintained in spare time. We reply as soon as we can, usually within a few days.</p>
+
+  <h2>Donations</h2>
+  <p>PleatView is free, and every feature stays free for everyone. If it's useful to you, you can <a href="https://donate.stripe.com/cNifZg4Wudug46O4X38Ra00">chip in</a> towards test devices and app-store fees.</p>
+  <ul>
+    <li>Donations are voluntary gifts. They don't buy features, priority support or anything else.</li>
+    <li>They are processed by Stripe and appear as <strong>Hustlesman</strong> on your card statement.</li>
+    <li>Donated by mistake, or the wrong amount? Email <a href="mailto:privacy@hustlesman.com">privacy@hustlesman.com</a> within 30 days for a full refund.</li>
+  </ul>
+
+  <nav class="pages"><a href="/">Home</a><a href="support.html">Support</a><a href="terms.html">Terms</a><a href="privacy.html">Privacy</a></nav>
+</main>
+</body>
+</html>
