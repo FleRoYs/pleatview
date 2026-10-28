@@ -21,7 +21,7 @@ the website, so you can download them straight into the upload fields.
 | App icon (512 × 512) | https://pleatview.hustlesman.com/img/play/icon-512.png |
 | Feature graphic (1024 × 500) | https://pleatview.hustlesman.com/img/play/feature-graphic.png |
 | Android TV banner (1280 × 720) | https://pleatview.hustlesman.com/img/play/tv-banner.png |
-| TV screenshots (1920 × 1080) | From the latest end-to-end run (`tools/e2e/out/`): dashboard, camera picture-in-picture, notification, menu |
+| TV screenshots (1920 × 1080) | From the latest end-to-end run (`tools/e2e/out/`): dashboard, map, notification and video. Not the camera screenshot: Home Assistant's demo camera shows a still from a TV show. |
 
 **Full description** (4000 max):
 
