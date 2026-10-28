@@ -1,0 +1,162 @@
+{
+  "config": {
+    "flow_title": "{name}",
+    "step": {
+      "user": {
+        "title": "Add a PleatView TV",
+        "description": "Enter the address shown on the TV's PleatView setup screen.",
+        "data": { "host": "Host", "port": "Port" }
+      },
+      "zeroconf_confirm": {
+        "title": "PleatView TV found",
+        "description": "Set up **{name}** ({host})? Open PleatView on the TV to see its PIN."
+      },
+      "pair": {
+        "title": "Pair with {name}",
+        "description": "Enter the 6-digit PIN shown on the TV. Open PleatView on the TV if it isn't visible; the PIN is also in its menu (press Back).",
+        "data": { "pin": "PIN" }
+      },
+      "dashboard_auth": {
+        "title": "How should {name} sign in?",
+        "description": "The TV needs to sign in to Home Assistant to show dashboards.",
+        "menu_options": {
+          "auth_managed": "Create a user for this TV (recommended)",
+          "auth_token": "Use a long-lived access token I created",
+          "auth_none": "Don't sign in from here (sign in on the TV instead)"
+        }
+      },
+      "auth_managed": {
+        "title": "Dedicated user",
+        "description": "Home Assistant creates a local-only user for this TV and gives it a long-lived access token. Deleting this integration also deletes the user.",
+        "data": { "allow_control": "Allow controlling devices from the TV" },
+        "data_description": { "allow_control": "Turn off for a read-only display: dashboards still update, but buttons on the TV can't change anything." }
+      },
+      "auth_token": {
+        "title": "Long-lived access token",
+        "description": "Create a token in your Home Assistant profile (Security tab) and paste it here. Dashboards appear as that user sees them.",
+        "data": { "ha_token": "Access token" }
+      }
+    },
+    "error": {
+      "cannot_connect": "Can't reach the TV. Check the address and that PleatView is open.",
+      "invalid_pin": "That PIN doesn't match the one on the TV.",
+      "too_many_attempts": "Too many wrong PINs. Wait a minute and use the new PIN on the TV.",
+      "invalid_ha_token": "Home Assistant doesn't recognise this token."
+    },
+    "abort": {
+      "already_configured": "This TV is already set up.",
+      "cannot_connect": "Can't reach the TV.",
+      "invalid_discovery_info": "The discovered device didn't identify itself.",
+      "reauth_successful": "Paired again."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Display settings",
+        "data": {
+          "ha_url": "Home Assistant URL for the TV",
+          "home_dashboard": "Home dashboard",
+          "dashboards": "Dashboards",
+          "kiosk": "Kiosk mode",
+          "zoom": "Zoom",
+          "rotate_seconds": "Rotate dashboards every",
+          "return_home_minutes": "Return home after idle",
+          "reload_minutes": "Reload the page every",
+          "keep_screen_on": "Keep the screen on",
+          "launch_on_boot": "Open PleatView when the TV starts"
+        },
+        "data_description": {
+          "ha_url": "Leave empty to use Home Assistant's internal URL.",
+          "home_dashboard": "Path such as /lovelace/0. Empty uses the first dashboard below, or your default dashboard.",
+          "dashboards": "One per line as \"Title = /path\". Empty lists every dashboard. Used as sources, for rotation and channel up/down on the remote.",
+          "zoom": "Below 100% fits more cards on screen.",
+          "rotate_seconds": "0 turns rotation off.",
+          "return_home_minutes": "After someone browses with the remote. 0 never returns.",
+          "reload_minutes": "A periodic full reload clears memory on long-running displays. 0 never reloads.",
+          "launch_on_boot": "Needs the \"Display over other apps\" permission on the TV."
+        }
+      }
+    },
+    "error": {
+      "invalid_url": "Enter a URL starting with http:// or https://."
+    }
+  },
+  "selector": {
+    "kiosk": {
+      "options": {
+        "full": "Hide sidebar and header",
+        "sidebar": "Hide sidebar",
+        "off": "Off"
+      }
+    },
+    "mode": {
+      "options": {
+        "fullscreen": "Full screen",
+        "pip": "Picture-in-picture"
+      }
+    },
+    "position": {
+      "options": {
+        "top-left": "Top left",
+        "top-right": "Top right",
+        "bottom-left": "Bottom left",
+        "bottom-right": "Bottom right",
+        "center": "Center"
+      }
+    }
+  },
+  "services": {
+    "show_dashboard": {
+      "name": "Show dashboard",
+      "description": "Shows a dashboard on the TV.",
+      "fields": {
+        "path": { "name": "Path", "description": "Dashboard path, such as /lovelace/cameras, or a full URL." },
+        "duration": { "name": "Duration", "description": "Return to the home dashboard after this many seconds. Empty or 0 stays." }
+      }
+    },
+    "show_url": {
+      "name": "Show web page",
+      "description": "Opens a web page on top of the dashboard.",
+      "fields": {
+        "url": { "name": "URL", "description": "Page to open." },
+        "mode": { "name": "Mode", "description": "Full screen or picture-in-picture." },
+        "position": { "name": "Position", "description": "Corner for picture-in-picture." },
+        "size": { "name": "Size", "description": "Picture-in-picture width as a percentage of the screen." },
+        "duration": { "name": "Duration", "description": "Close after this many seconds. Empty or 0 stays until stopped." }
+      }
+    },
+    "show_camera": {
+      "name": "Show camera",
+      "description": "Shows a camera's live stream, by default as picture-in-picture over the dashboard.",
+      "fields": {
+        "camera": { "name": "Camera", "description": "Camera to show." },
+        "mode": { "name": "Mode", "description": "Full screen or picture-in-picture." },
+        "position": { "name": "Position", "description": "Corner for picture-in-picture." },
+        "size": { "name": "Size", "description": "Picture-in-picture width as a percentage of the screen." },
+        "duration": { "name": "Duration", "description": "Close after this many seconds. Empty or 0 stays until stopped." },
+        "title": { "name": "Title", "description": "Shown in Home Assistant while the stream plays. Defaults to the camera name." }
+      }
+    },
+    "notify": {
+      "name": "Show notification",
+      "description": "Shows a notification card on the TV, also over other apps when PleatView may draw overlays.",
+      "fields": {
+        "message": { "name": "Message", "description": "Notification text." },
+        "title": { "name": "Title", "description": "Bold first line." },
+        "image": { "name": "Image", "description": "Image URL, Home Assistant path (/local/…) or media-source ID." },
+        "camera": { "name": "Camera snapshot", "description": "Attach a current snapshot from this camera." },
+        "duration": { "name": "Duration", "description": "Seconds before the card disappears. Defaults to 10." },
+        "position": { "name": "Position", "description": "Screen corner." }
+      }
+    },
+    "home": {
+      "name": "Go home",
+      "description": "Stops media, closes overlays and shows the home dashboard."
+    },
+    "reload": {
+      "name": "Reload dashboard",
+      "description": "Reloads the dashboard page."
+    }
+  }
+}

@@ -1,0 +1,124 @@
+"""Tests for setting up, syncing and removing PleatView entries."""
+
+from __future__ import annotations
+
+import asyncio
+
+from custom_components.pleatview.const import (
+    AUTH_MANAGED,
+    CONF_ALLOW_CONTROL,
+    CONF_AUTH_MODE,
+    CONF_HA_TOKEN,
+    CONF_TOKEN,
+    CONF_USER_ID,
+    DOMAIN,
+)
+from homeassistant.auth.const import GROUP_ID_READ_ONLY
+from homeassistant.config_entries import SOURCE_REAUTH, ConfigEntryState
+from homeassistant.core import HomeAssistant
+
+from .conftest import HA_URL, make_entry, setup_entry
+from .fake_tv import FakeTV
+
+
+async def test_setup_pushes_config(hass: HomeAssistant, fake_tv: FakeTV) -> None:
+    entry = await setup_entry(hass, make_entry(fake_tv))
+    assert entry.state is ConfigEntryState.LOADED
+    assert fake_tv.config["ha_url"] == HA_URL
+    assert fake_tv.config["dashboards"] == [
+        {"title": "Home", "path": "/lovelace/0"},
+        {"title": "Cameras", "path": "/dashboard-cams"},
+    ]
+    assert "ha_token" not in fake_tv.config  # auth mode "none" leaves sign-in to the TV
+    assert fake_tv.config["rev"]
+    assert hass.states.get("media_player.living_room_tv").state == "idle"
+    assert hass.states.get("notify.living_room_tv") is not None
+    await hass.config_entries.async_unload(entry.entry_id)
+
+
+async def test_managed_user_lifecycle(hass: HomeAssistant, fake_tv: FakeTV, hass_owner_user) -> None:
+    # hass_owner_user: a real instance always has an owner, so ours is never promoted to one.
+    entry = await setup_entry(hass, make_entry(fake_tv, **{CONF_AUTH_MODE: AUTH_MANAGED, CONF_ALLOW_CONTROL: False}))
+    user = await hass.auth.async_get_user(entry.data[CONF_USER_ID])
+    assert user is not None
+    assert user.local_only
+    assert [group.id for group in user.groups] == [GROUP_ID_READ_ONLY]
+    token = fake_tv.config["ha_token"]
+    assert token == entry.data[CONF_HA_TOKEN]
+    assert hass.auth.async_validate_access_token(token) is not None
+
+    # A reload keeps the existing user and token.
+    await hass.config_entries.async_reload(entry.entry_id)
+    await hass.async_block_till_done()
+    assert entry.data[CONF_HA_TOKEN] == token
+
+    await hass.config_entries.async_remove(entry.entry_id)
+    await hass.async_block_till_done()
+    assert await hass.auth.async_get_user(user.id) is None
+    assert fake_tv.config["ha_url"] == ""
+    assert fake_tv.config["ha_token"] == ""
+    assert entry.data[CONF_TOKEN] not in fake_tv.tokens
+
+
+async def test_rejected_token_starts_reauth(hass: HomeAssistant, fake_tv: FakeTV) -> None:
+    entry = make_entry(fake_tv)
+    fake_tv.tokens.clear()  # the TV's app data was wiped
+    hass.config.internal_url = HA_URL
+    entry.add_to_hass(hass)
+    assert not await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    assert entry.state is ConfigEntryState.SETUP_ERROR
+    flows = hass.config_entries.flow.async_progress_by_handler(DOMAIN)
+    assert len(flows) == 1
+    assert flows[0]["context"]["source"] == SOURCE_REAUTH
+
+    result = await hass.config_entries.flow.async_configure(flows[0]["flow_id"], {"pin": fake_tv.pin})
+    assert result["reason"] == "reauth_successful"
+    assert entry.data[CONF_TOKEN] in fake_tv.tokens
+
+
+async def test_tv_restart_reapplies_config(hass: HomeAssistant, fake_tv: FakeTV) -> None:
+    entry = await setup_entry(hass, make_entry(fake_tv))
+    await fake_tv.wait_for_stream()
+    rev = fake_tv.config["rev"]
+
+    # The TV comes back with different settings and the stream reconnects.
+    fake_tv.config.clear()
+    fake_tv.state["config_rev"] = ""
+    fake_tv.close_streams()
+    async with asyncio.timeout(10):
+        while fake_tv.config.get("rev") != rev:
+            fake_tv._closing.clear()
+            await asyncio.sleep(0.05)
+    assert fake_tv.config["ha_url"] == HA_URL
+    await hass.config_entries.async_unload(entry.entry_id)
+
+
+async def test_dashboard_discovery_and_parsing(hass: HomeAssistant) -> None:
+    from types import SimpleNamespace
+
+    from custom_components.pleatview.coordinator import discover_dashboards, parse_dashboards
+
+    def panel(component: str, title: str | None, admin: bool = False) -> SimpleNamespace:
+        return SimpleNamespace(component_name=component, sidebar_title=title, require_admin=admin)
+
+    hass.data["frontend_panels"] = {
+        "lovelace": panel("lovelace", None),
+        "home": panel("home", "home"),
+        "dashboard-cams": panel("lovelace", "Cameras"),
+        "energy": panel("energy", "energy"),
+        "config": panel("config", "config", admin=True),
+        "admin-only": panel("lovelace", "Secrets", admin=True),
+        "profile": panel("profile", None),
+    }
+    assert discover_dashboards(hass) == [
+        {"title": "Home", "path": "/home"},
+        {"title": "Overview", "path": "/lovelace"},
+        {"title": "Cameras", "path": "/dashboard-cams"},
+        {"title": "Energy", "path": "/energy"},
+    ]
+    assert parse_dashboards("Cams = dashboard-cams\n# note\n\n/lovelace/0\nGrafana = https://g.example/d/1") == [
+        {"title": "Cams", "path": "/dashboard-cams"},
+        {"title": "/lovelace/0", "path": "/lovelace/0"},
+        {"title": "Grafana", "path": "https://g.example/d/1"},
+    ]

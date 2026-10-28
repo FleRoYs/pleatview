@@ -1,0 +1,270 @@
+"""Config flow for PleatView."""
+
+from __future__ import annotations
+
+from collections.abc import Mapping
+from typing import Any
+
+import voluptuous as vol
+
+from homeassistant.config_entries import (
+    SOURCE_REAUTH,
+    ConfigEntry,
+    ConfigFlow,
+    ConfigFlowResult,
+    OptionsFlow,
+)
+from homeassistant.const import CONF_HOST, CONF_PORT
+from homeassistant.core import callback
+from homeassistant.helpers import selector
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.helpers.service_info.zeroconf import ZeroconfServiceInfo
+
+from .api import InvalidPin, PleatViewClient, PleatViewError, TooManyAttempts
+from .const import (
+    AUTH_MANAGED,
+    AUTH_NONE,
+    AUTH_TOKEN,
+    CONF_ALLOW_CONTROL,
+    CONF_AUTH_MODE,
+    CONF_DASHBOARDS,
+    CONF_HA_TOKEN,
+    CONF_HA_URL,
+    CONF_HOME_DASHBOARD,
+    CONF_KEEP_SCREEN_ON,
+    CONF_KIOSK,
+    CONF_LAUNCH_ON_BOOT,
+    CONF_RELOAD_MINUTES,
+    CONF_RETURN_HOME_MINUTES,
+    CONF_ROTATE_SECONDS,
+    CONF_TOKEN,
+    CONF_ZOOM,
+    DEFAULT_OPTIONS,
+    DEFAULT_PORT,
+    DOMAIN,
+    KIOSK_MODES,
+)
+
+USER_SCHEMA = vol.Schema(
+    {
+        vol.Required(CONF_HOST): str,
+        vol.Required(CONF_PORT, default=DEFAULT_PORT): vol.All(vol.Coerce(int), vol.Range(min=1, max=65535)),
+    }
+)
+PIN_SCHEMA = vol.Schema({vol.Required("pin"): str})
+
+
+class PleatViewConfigFlow(ConfigFlow, domain=DOMAIN):
+    """Discover or add a TV, pair with its PIN, then choose how it signs in."""
+
+    VERSION = 1
+
+    def __init__(self) -> None:
+        """Initialize the flow."""
+        self._host = ""
+        self._port = DEFAULT_PORT
+        self._info: dict[str, Any] = {}
+        self._token: str | None = None
+
+    @staticmethod
+    @callback
+    def async_get_options_flow(config_entry: ConfigEntry) -> OptionsFlow:
+        """Return the options flow."""
+        return PleatViewOptionsFlow()
+
+    def _client(self) -> PleatViewClient:
+        return PleatViewClient(async_get_clientsession(self.hass), self._host, self._port, self._token)
+
+    @property
+    def _name(self) -> str:
+        return self._info.get("name") or "PleatView"
+
+    async def async_step_user(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        """Add a TV by address."""
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            self._host = user_input[CONF_HOST].strip()
+            self._port = user_input[CONF_PORT]
+            try:
+                self._info = await self._client().get_info()
+            except PleatViewError:
+                errors["base"] = "cannot_connect"
+            else:
+                await self.async_set_unique_id(self._info["id"])
+                self._abort_if_unique_id_configured(updates={CONF_HOST: self._host, CONF_PORT: self._port})
+                return await self.async_step_pair()
+        return self.async_show_form(
+            step_id="user",
+            data_schema=self.add_suggested_values_to_schema(USER_SCHEMA, user_input),
+            errors=errors,
+        )
+
+    async def async_step_zeroconf(self, discovery_info: ZeroconfServiceInfo) -> ConfigFlowResult:
+        """Handle a TV advertising _pleatview._tcp."""
+        device_id = discovery_info.properties.get("id")
+        if not device_id:
+            return self.async_abort(reason="invalid_discovery_info")
+        self._host = discovery_info.host
+        self._port = discovery_info.port or DEFAULT_PORT
+        await self.async_set_unique_id(device_id)
+        self._abort_if_unique_id_configured(updates={CONF_HOST: self._host, CONF_PORT: self._port})
+        try:
+            self._info = await self._client().get_info()
+        except PleatViewError:
+            return self.async_abort(reason="cannot_connect")
+        self.context["title_placeholders"] = {"name": self._name}
+        return await self.async_step_zeroconf_confirm()
+
+    async def async_step_zeroconf_confirm(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        """Confirm a discovered TV."""
+        if user_input is not None:
+            return await self.async_step_pair()
+        self._set_confirm_only()
+        return self.async_show_form(
+            step_id="zeroconf_confirm",
+            description_placeholders={"name": self._name, "host": self._host},
+        )
+
+    async def async_step_pair(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        """Ask for the PIN shown on the TV."""
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            try:
+                self._token = await self._client().pair(user_input["pin"], "Home Assistant")
+            except InvalidPin:
+                errors["base"] = "invalid_pin"
+            except TooManyAttempts:
+                errors["base"] = "too_many_attempts"
+            except PleatViewError:
+                errors["base"] = "cannot_connect"
+            else:
+                if self.source == SOURCE_REAUTH:
+                    return self.async_update_reload_and_abort(
+                        self._get_reauth_entry(),
+                        data_updates={CONF_HOST: self._host, CONF_PORT: self._port, CONF_TOKEN: self._token},
+                    )
+                return await self.async_step_dashboard_auth()
+        return self.async_show_form(
+            step_id="pair",
+            data_schema=PIN_SCHEMA,
+            description_placeholders={"name": self._name},
+            errors=errors,
+        )
+
+    async def async_step_dashboard_auth(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        """Choose how the TV signs in to Home Assistant to show dashboards."""
+        return self.async_show_menu(
+            step_id="dashboard_auth",
+            menu_options=["auth_managed", "auth_token", "auth_none"],
+            description_placeholders={"name": self._name},
+        )
+
+    async def async_step_auth_managed(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        """Create a dedicated, local-only user for the TV."""
+        if user_input is not None:
+            return self._create(AUTH_MANAGED, {CONF_ALLOW_CONTROL: user_input[CONF_ALLOW_CONTROL]})
+        return self.async_show_form(
+            step_id="auth_managed",
+            data_schema=vol.Schema({vol.Required(CONF_ALLOW_CONTROL, default=True): bool}),
+        )
+
+    async def async_step_auth_token(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        """Use a long-lived access token the user created."""
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            token = user_input[CONF_HA_TOKEN].strip()
+            if self.hass.auth.async_validate_access_token(token) is None:
+                errors[CONF_HA_TOKEN] = "invalid_ha_token"
+            else:
+                return self._create(AUTH_TOKEN, {CONF_HA_TOKEN: token})
+        return self.async_show_form(
+            step_id="auth_token",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(CONF_HA_TOKEN): selector.TextSelector(
+                        selector.TextSelectorConfig(type=selector.TextSelectorType.PASSWORD)
+                    )
+                }
+            ),
+            errors=errors,
+        )
+
+    async def async_step_auth_none(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        """Leave signing in to the TV (remote control or phone setup page)."""
+        return self._create(AUTH_NONE, {})
+
+    def _create(self, auth_mode: str, extra: dict[str, Any]) -> ConfigFlowResult:
+        return self.async_create_entry(
+            title=self._name,
+            data={
+                CONF_HOST: self._host,
+                CONF_PORT: self._port,
+                CONF_TOKEN: self._token,
+                CONF_AUTH_MODE: auth_mode,
+                **extra,
+            },
+        )
+
+    async def async_step_reauth(self, entry_data: Mapping[str, Any]) -> ConfigFlowResult:
+        """The TV forgot us (app data cleared or pairing reset): pair again."""
+        self._host = entry_data[CONF_HOST]
+        self._port = entry_data[CONF_PORT]
+        try:
+            self._info = await self._client().get_info()
+        except PleatViewError:
+            return self.async_abort(reason="cannot_connect")
+        return await self.async_step_pair()
+
+
+class PleatViewOptionsFlow(OptionsFlow):
+    """Dashboard and display settings, pushed to the TV."""
+
+    async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        """Manage the options."""
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            url = (user_input.get(CONF_HA_URL) or "").strip()
+            if url and not url.startswith(("http://", "https://")):
+                errors[CONF_HA_URL] = "invalid_url"
+            else:
+                return self.async_create_entry(data=user_input)
+
+        options = {**DEFAULT_OPTIONS, **self.config_entry.options, **(user_input or {})}
+
+        def number(maximum: int, unit: str, step: int = 1) -> selector.NumberSelector:
+            return selector.NumberSelector(
+                selector.NumberSelectorConfig(
+                    min=0, max=maximum, step=step, unit_of_measurement=unit,
+                    mode=selector.NumberSelectorMode.BOX,
+                )
+            )
+
+        schema = vol.Schema(
+            {
+                vol.Optional(CONF_HA_URL, description={"suggested_value": options.get(CONF_HA_URL)}): selector.TextSelector(
+                    selector.TextSelectorConfig(type=selector.TextSelectorType.URL)
+                ),
+                vol.Optional(
+                    CONF_HOME_DASHBOARD, description={"suggested_value": options.get(CONF_HOME_DASHBOARD)}
+                ): selector.TextSelector(),
+                vol.Optional(
+                    CONF_DASHBOARDS, description={"suggested_value": options.get(CONF_DASHBOARDS)}
+                ): selector.TextSelector(selector.TextSelectorConfig(multiline=True)),
+                vol.Required(CONF_KIOSK, default=options[CONF_KIOSK]): selector.SelectSelector(
+                    selector.SelectSelectorConfig(
+                        options=KIOSK_MODES, translation_key="kiosk", mode=selector.SelectSelectorMode.DROPDOWN
+                    )
+                ),
+                vol.Required(CONF_ZOOM, default=options[CONF_ZOOM]): selector.NumberSelector(
+                    selector.NumberSelectorConfig(
+                        min=25, max=200, step=5, unit_of_measurement="%", mode=selector.NumberSelectorMode.BOX
+                    )
+                ),
+                vol.Required(CONF_ROTATE_SECONDS, default=options[CONF_ROTATE_SECONDS]): number(3600, "s"),
+                vol.Required(CONF_RETURN_HOME_MINUTES, default=options[CONF_RETURN_HOME_MINUTES]): number(1440, "min"),
+                vol.Required(CONF_RELOAD_MINUTES, default=options[CONF_RELOAD_MINUTES]): number(10080, "min"),
+                vol.Required(CONF_KEEP_SCREEN_ON, default=options[CONF_KEEP_SCREEN_ON]): selector.BooleanSelector(),
+                vol.Required(CONF_LAUNCH_ON_BOOT, default=options[CONF_LAUNCH_ON_BOOT]): selector.BooleanSelector(),
+            }
+        )
+        return self.async_show_form(step_id="init", data_schema=schema, errors=errors)

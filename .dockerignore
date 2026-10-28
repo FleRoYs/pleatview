@@ -1,0 +1,3 @@
+# Only tools/ha-test/Dockerfile builds from the repository root; it needs one file.
+*
+!requirements-test.txt

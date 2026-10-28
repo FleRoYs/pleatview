@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PleatView: Home Assistant dashboards on your TV</title>
+<meta name="description" content="A lightweight Google TV app and Home Assistant integration: always-on dashboards, camera pop-ups, media casting and notifications on your TV.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='26 29 56 50'%3E%3Cpath fill='%2318BCF2' d='M30 38 42 33v37l-12 5zM54 38l12-5v37l-12 5z'/%3E%3Cpath fill='%230B7FA8' d='M42 33l12 5v37l-12-5zM66 33l12 5v37l-12-5z'/%3E%3C/svg%3E">
+<style>
+  :root { --bg: #0f1417; --surface: #1b2328; --line: #2c373e; --text: #eef2f4; --muted: #9aa7ae; --accent: #18bcf2; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 17px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  a { color: var(--accent); }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 0 20px; }
+  header { display: flex; align-items: center; justify-content: space-between; padding: 22px 0; }
+  .brand { display: flex; align-items: center; gap: 10px; color: var(--text); text-decoration: none; font-weight: 700; font-size: 20px; }
+  nav a { color: var(--muted); text-decoration: none; margin-left: 22px; font-size: 15px; }
+  nav a:hover { color: var(--text); }
+  .hero { padding: 48px 0 28px; max-width: 760px; }
+  .badge { display: inline-block; font-size: 13px; color: var(--accent); border: 1px solid var(--accent); border-radius: 999px; padding: 3px 12px; margin-bottom: 18px; }
+  h1 { font-size: clamp(32px, 5vw, 52px); line-height: 1.1; margin: 0 0 18px; }
+  .lead { font-size: 19px; color: var(--muted); margin: 0 0 28px; }
+  .buttons { display: flex; flex-wrap: wrap; gap: 12px; }
+  .button { display: inline-block; padding: 12px 22px; border-radius: 10px; font-weight: 600; text-decoration: none; }
+  .primary { background: var(--accent); color: #062430; }
+  .secondary { border: 1px solid var(--line); color: var(--text); }
+  figure { margin: 36px 0 0; }
+  figure img { width: 100%; height: auto; border-radius: 14px; border: 1px solid var(--line); display: block; }
+  figcaption { color: var(--muted); font-size: 14px; margin-top: 10px; }
+  section { padding: 56px 0 8px; }
+  h2 { font-size: 28px; margin: 0 0 22px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 16px; }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 20px; }
+  .card h3 { margin: 0 0 6px; font-size: 18px; }
+  .card p { margin: 0; color: var(--muted); font-size: 15px; }
+  .steps { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; align-items: start; }
+  ol { margin: 0; padding-left: 22px; }
+  ol li { margin-bottom: 16px; }
+  ol li span { color: var(--muted); display: block; font-size: 15px; }
+  code { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 1px 6px; font-size: 14px; }
+  table { width: 100%; border-collapse: collapse; font-size: 15px; }
+  th, td { text-align: left; padding: 12px 10px; border-bottom: 1px solid var(--line); }
+  th { color: var(--muted); font-weight: 600; }
+  .status { white-space: nowrap; }
+  .beta { color: var(--accent); }
+  footer { margin: 64px 0 0; padding: 28px 0 40px; border-top: 1px solid var(--line); color: var(--muted); font-size: 14px; }
+  footer p { margin: 6px 0; }
+  @media (max-width: 760px) { .steps { grid-template-columns: 1fr; } nav a { margin-left: 14px; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <a class="brand" href="/">
+      <svg width="34" height="30" viewBox="26 29 56 50" aria-hidden="true">
+        <path fill="#18BCF2" d="M30 38 42 33v37l-12 5zM54 38l12-5v37l-12 5z"/>
+        <path fill="#0B7FA8" d="M42 33l12 5v37l-12-5zM66 33l12 5v37l-12-5z"/>
+      </svg>
+      PleatView
+    </a>
+    <nav>
+      <a href="#install">Install</a>
+      <a href="https://github.com/FleRoYs/pleatview/blob/main/ROADMAP.md">Roadmap</a>
+      <a href="https://github.com/FleRoYs/pleatview">GitHub</a>
+    </nav>
+  </header>
+
+  <div class="hero">
+    <span class="badge">Beta · free and open source</span>
+    <h1>Your Home Assistant dashboards, always on your TV.</h1>
+    <p class="lead">A lightweight Google TV app with a Home Assistant integration. Keep dashboards on screen around the clock, pop up cameras when someone rings, cast media and send notifications to the big screen.</p>
+    <div class="buttons">
+      <a class="button primary" href="#install">Get started</a>
+      <a class="button secondary" href="https://github.com/FleRoYs/pleatview">View on GitHub</a>
+    </div>
+  </div>
+
+  <figure>
+    <img src="img/dashboard.webp" width="1280" height="720" alt="A Home Assistant overview dashboard shown full screen on a TV, without the sidebar or header">
+    <figcaption>Home Assistant's overview dashboard on Android TV, signed in automatically, sidebar and header hidden.</figcaption>
+  </figure>
+
+  <section>
+    <h2>What it does</h2>
+    <div class="grid">
+      <div class="card"><h3>Always-on dashboards</h3><p>Any dashboard full screen, kept running for days. Recovers from Wi-Fi drops, Home Assistant restarts and browser crashes on its own.</p></div>
+      <div class="card"><h3>Cast from Home Assistant</h3><p>The TV becomes a media player: play from the media browser, internet radio, text-to-speech announcements and web pages.</p></div>
+      <div class="card"><h3>Camera pop-ups</h3><p>Show a camera's live stream full screen or in a corner over the dashboard, for example when the doorbell rings.</p></div>
+      <div class="card"><h3>Notifications</h3><p>Send cards to the TV with <code>notify.send_message</code>, including a camera snapshot. They can also appear over other apps.</p></div>
+      <div class="card"><h3>Made for the remote</h3><p>Switch dashboards with channel up/down, close pop-ups with Back, and use the menu without a keyboard.</p></div>
+      <div class="card"><h3>Private and local</h3><p>No cloud, no accounts, no tracking. The TV talks only to your own Home Assistant on your network.</p></div>
+    </div>
+  </section>
+
+  <section id="install">
+    <h2>Get started</h2>
+    <div class="steps">
+      <ol>
+        <li><strong>Install the TV app.</strong><span>Download the APK from <a href="https://github.com/FleRoYs/pleatview/releases">GitHub Releases</a> and install it with adb. Store versions are on the <a href="https://github.com/FleRoYs/pleatview/blob/main/ROADMAP.md">roadmap</a>.</span></li>
+        <li><strong>Add the integration.</strong><span>In HACS, add <code>https://github.com/FleRoYs/pleatview</code> as a custom repository and install PleatView, then restart Home Assistant.</span></li>
+        <li><strong>Pair with the PIN on screen.</strong><span>Home Assistant discovers the TV. Enter the PIN it shows, and pick a dedicated user for the TV.</span></li>
+      </ol>
+      <figure style="margin:0">
+        <img src="img/setup.webp" width="1280" height="720" alt="The PleatView setup screen showing the TV's address and a six-digit pairing PIN" loading="lazy">
+      </figure>
+    </div>
+    <p>Step-by-step instructions, automation examples and settings are in the <a href="https://github.com/FleRoYs/pleatview#readme">README</a>.</p>
+  </section>
+
+  <section>
+    <h2>Platforms</h2>
+    <table>
+      <thead><tr><th>Platform</th><th>How</th><th>Status</th></tr></thead>
+      <tbody>
+        <tr><td>Google TV and Android TV</td><td>Native app</td><td class="status beta">Beta (sideload); Google Play planned</td></tr>
+        <tr><td>Fire TV (Fire OS)</td><td>Native app</td><td class="status">Planned (Amazon Appstore)</td></tr>
+        <tr><td>LG webOS</td><td>Web app</td><td class="status">Planned</td></tr>
+        <tr><td>Samsung Tizen</td><td>Web app</td><td class="status">Planned</td></tr>
+        <tr><td>Browsers and kiosks</td><td>Web app served by Home Assistant</td><td class="status">Planned</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <figure>
+    <img src="img/menu.webp" width="1280" height="720" alt="The PleatView menu over a dashboard, listing dashboards, reload and exit" loading="lazy">
+    <figcaption>Press Back on the home dashboard for the menu: switch dashboards, reload, or see the pairing PIN.</figcaption>
+  </figure>
+
+  <footer>
+    <p>© 2026 FleRoYs · <a href="https://github.com/FleRoYs/pleatview/blob/main/LICENSE">MIT License</a> · <a href="privacy.html">Privacy</a> · <a href="https://github.com/FleRoYs/pleatview/issues">Report an issue</a></p>
+    <p>PleatView is not affiliated with Home Assistant, Nabu Casa, Google, Amazon, LG or Samsung.</p>
+  </footer>
+</div>
+</body>
+</html>
