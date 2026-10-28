@@ -66,5 +66,3 @@ jobs:
       - uses: hacs/action@main
         with:
           category: integration
-          # Brand images are only needed for the HACS default list (roadmap M6).
-          ignore: brands

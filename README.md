@@ -1,4 +1,10 @@
-# PleatView
+<h1 align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="brand/pleatview-logo-on-dark.svg">
+    <source media="(prefers-color-scheme: light)" srcset="brand/pleatview-logo-on-light.svg">
+    <img src="brand/pleatview-icon.svg" alt="PleatView" height="80">
+  </picture>
+</h1>
 
 A lightweight Google TV / Android TV app plus a Home Assistant integration that turns
 a TV into an always-on Home Assistant display you can cast to.
