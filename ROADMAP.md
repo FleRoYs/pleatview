@@ -126,9 +126,17 @@ requires.
 - [ ] v0.2 announced on the Home Assistant Community forum and r/homeassistant
 - [ ] GitHub issue templates: bug report (device, OS, Home Assistant version, logs) and
       device report
-- [ ] Google Play closed-testing track with ≥12 opted-in testers (personal account
-      only). The 14 days start the day the account is verified, running alongside M1,
-      so they don't add to the timeline.
+- [ ] **Demo for reviewers:** a "Try the demo" option on the setup screen, connected to
+      an isolated, read-only demo Home Assistant (demo data only, never a real home).
+      Google reviews closed-test builds too, and reviewers can't test without a server.
+- [ ] Google Play setup the closed test needs: privacy policy, Data safety ("no data
+      collected"), content rating, target audience, app access (pointing reviewers at
+      the demo), a basic listing, and the app bundle with Play App Signing
+- [ ] Google Play closed test with ≥12 testers, who join through a Google Group so there
+      are no email lists to maintain. The 14 days start when the first closed-test build
+      passes review.
+- [ ] Optional donation link (Stripe Payment Link) on the website and GitHub. It stays
+      out of the app and store listings, which Google Play's payment rules restrict.
 - [ ] P1 bugs fixed within 48 hours; a beta build every week
 - [ ] Device compatibility table on the website, filled from tester reports
 - [ ] One-press pairing: approve Home Assistant on the TV with OK, instead of typing the PIN
@@ -141,14 +149,8 @@ fixed, v0.3.0 released.
 *Mon 7 Dec 2026 → Fri 15 Jan 2027* (reviews and holidays included). Install from the
 store on Google TV and Fire TV.
 
-- [ ] **Demo for reviewers:** a "Try the demo" option on the setup screen, connected to
-      an isolated, read-only demo Home Assistant (demo data only, never a real home).
-      Reviewers can't test the app without a server.
-- [ ] Google Play listing: TV screenshots (1920×1080), feature graphic, description,
-      privacy policy URL, content rating, target audience, Data safety ("no data
-      collected")
+- [ ] Full Google Play listing: TV screenshots (1920×1080), feature graphic, description
 - [ ] Foreground-service declaration with its demo video
-- [ ] App bundle from the release workflow, with Play App Signing
 - [ ] Releases upload to Google Play automatically through a service account, so the
       owner account is only needed for store forms
 - [ ] Android TV opted in; app checked against Google's TV app quality guidelines
