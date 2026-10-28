@@ -4,48 +4,62 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>PleatView privacy policy</title>
-<style>
-  body { margin: 0; background: #0f1417; color: #eef2f4; font: 17px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
-  main { max-width: 760px; margin: 0 auto; padding: 40px 20px 60px; }
-  a { color: #18bcf2; }
-  h1 { font-size: 32px; margin: 0 0 6px; }
-  h2 { font-size: 20px; margin: 32px 0 8px; }
-  .muted { color: #9aa7ae; }
-</style>
+<link rel="stylesheet" href="page.css">
 </head>
 <body>
 <main>
   <p><a href="/">← PleatView</a></p>
   <h1>Privacy policy</h1>
-  <p class="muted">Effective 28 October 2026. Applies to the PleatView TV app and the PleatView Home Assistant integration, developed and published by Hustlesman.</p>
+  <p class="muted">Effective 28 October 2026. Applies to the PleatView TV app, the PleatView Home Assistant integration and this website, developed and published by Hustlesman.</p>
 
   <h2>Summary</h2>
-  <p>PleatView does not collect, sell or share personal data. It has no accounts, analytics, advertising, crash reporting or third-party tracking. The TV app communicates only with your own Home Assistant server and with media addresses your Home Assistant sends to it.</p>
+  <p>PleatView does not collect, sell or share personal data. It has no accounts, analytics, advertising, crash reporting or tracking. The TV app talks only to your own Home Assistant server, and to the media, image and web addresses your Home Assistant sends it.</p>
 
-  <h2>What the TV app stores</h2>
+  <h2>Who we are</h2>
+  <p>PleatView is developed and published by Hustlesman. For anything about privacy, email <a href="mailto:privacy@hustlesman.com">privacy@hustlesman.com</a>.</p>
+
+  <h2>The TV app</h2>
   <p>On the TV itself, PleatView stores:</p>
   <ul>
     <li>the address of your Home Assistant server and an access token used to show your dashboards,</li>
     <li>its settings (dashboards, zoom, kiosk mode and similar),</li>
-    <li>a random device identifier, derived from Android's per-app identifier, so Home Assistant recognises the TV,</li>
+    <li>a device identifier derived from Android's per-app identifier, so Home Assistant recognises the TV,</li>
     <li>one-way hashes of the pairing tokens it has issued.</li>
   </ul>
-  <p>This data stays on the TV. It is excluded from Android backups and device-to-device transfers. Uninstalling the app or clearing its data deletes it.</p>
+  <p>This data never leaves the TV except to your own Home Assistant. It is excluded from Android backups and device-to-device transfers. PleatView does not collect location, contacts, advertising identifiers, usage statistics or crash reports.</p>
 
   <h2>Network connections</h2>
-  <p>The TV app listens on your local network (port 8765) so a paired Home Assistant can control it, and announces itself on the local network so Home Assistant can find it. Pairing requires a PIN shown on the TV. The app connects to your Home Assistant server and to the media, image and web addresses that Home Assistant asks it to show. It makes no other connections.</p>
+  <p>The app listens on your local network (port 8765) so a paired Home Assistant can control it, and announces itself on the local network so Home Assistant can find it. Pairing requires a PIN shown on the TV. The app connects to your Home Assistant server and to the media, image and web addresses Home Assistant asks it to show. It makes no other connections.</p>
 
-  <h2>Home Assistant integration</h2>
-  <p>The integration runs inside your own Home Assistant. If you choose to, it creates a local-only Home Assistant user for the TV and gives the TV an access token for that user. Removing the integration deletes that user and resets the TV.</p>
+  <h2>The Home Assistant integration</h2>
+  <p>The integration runs inside your own Home Assistant. By default it creates a local-only Home Assistant user for the TV and gives the TV an access token for that user. Removing the integration deletes that user and resets the TV.</p>
+
+  <h2>This website</h2>
+  <p>pleatview.hustlesman.com uses no cookies, analytics or trackers. It is hosted on GitHub Pages and delivered through Cloudflare. Like any website host, they process technical data such as IP addresses to deliver pages and protect against abuse, under their own privacy policies.</p>
+
+  <h2>Donations</h2>
+  <p>Donations are optional and are processed by Stripe. We receive what Stripe shares with us: your email address, the amount, and your name or message if you give them. We use this only to send receipts, reply to you and keep the records the law requires. We never see your full card details. Stripe's own privacy policy covers the payment itself.</p>
+
+  <h2>Deleting your data</h2>
+  <ul>
+    <li><strong>TV app:</strong> uninstall it, or clear its data in Android's app settings.</li>
+    <li><strong>Integration:</strong> remove it in Home Assistant, which also deletes the user it created.</li>
+    <li><strong>Donation records:</strong> email <a href="mailto:privacy@hustlesman.com">privacy@hustlesman.com</a> and we'll delete anything we're not required to keep.</li>
+  </ul>
+
+  <h2>Security</h2>
+  <p>Control of the TV stays on your local network, pairing needs a PIN shown on the TV, and only hashes of pairing tokens are stored. Please report security problems privately to <a href="mailto:privacy@hustlesman.com">privacy@hustlesman.com</a>.</p>
+
+  <h2>Children</h2>
+  <p>PleatView is not directed at children under 13, and it collects no personal data from anyone.</p>
 
   <h2>App stores</h2>
-  <p>If you install PleatView from an app store, the store's own privacy policy covers the data it collects, such as downloads and crash statistics it gathers itself.</p>
+  <p>If you install PleatView from an app store, the store's own privacy policy covers the data it collects, such as download and crash statistics.</p>
 
-  <h2>Changes and contact</h2>
-  <p>Changes to this policy are published on this page and in the project's <a href="https://github.com/FleRoYs/pleatview">GitHub repository</a>. Questions about privacy: <a href="https://github.com/FleRoYs/pleatview/issues">open an issue</a> on GitHub.</p>
+  <h2>Changes</h2>
+  <p>Changes to this policy are published on this page and in the project's <a href="https://github.com/FleRoYs/pleatview">GitHub repository</a>.</p>
 
-  <h2>Who we are</h2>
-  <p>PleatView is developed and published by Hustlesman. Optional donations made through the website are processed by Stripe and appear as Hustlesman on card statements. The app itself handles no payments.</p>
+  <nav class="pages"><a href="/">Home</a><a href="support.html">Support</a><a href="terms.html">Terms</a><a href="privacy.html">Privacy</a></nav>
 </main>
 </body>
 </html>

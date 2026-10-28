@@ -292,6 +292,10 @@ back to the local debug key.
 
 ## Support
 
+Help, common questions and contact details are on the
+[support page](https://pleatview.hustlesman.com/support.html). Report security problems
+privately as described in [SECURITY.md](SECURITY.md).
+
 PleatView is free and open source, and every feature stays free for everyone. If it's
 useful to you, you can [chip in](https://donate.stripe.com/cNifZg4Wudug46O4X38Ra00) towards test devices and app-store fees
 (payments go through Stripe and appear as Hustlesman). Bug reports and ideas help just as
