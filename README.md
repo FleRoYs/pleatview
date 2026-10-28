@@ -109,6 +109,11 @@ You get `media_player.<tv>` and `notify.<tv>`. The media player is `off` while P
 is in the background or in standby, `idle` while showing a dashboard, and
 `playing`/`paused` while showing media. Its **sources are your dashboards**.
 
+**Webpage dashboards** (Grafana, OpenSearch, Kibana, UniFi…) work too: add one in Home
+Assistant (*Settings → Dashboards → Add dashboard → Webpage*) and it becomes a source. The
+TV opens the site itself rather than inside Home Assistant's frame, so sites that refuse
+frames or need their own sign-in cookie still load, and the zoom applies to them as well.
+
 | To… | Use |
 | --- | --- |
 | Switch dashboards | `media_player.select_source`, `pleatview.show_dashboard` (optional `duration` to return home), or the *Dashboards* folder in the media browser |
@@ -197,7 +202,7 @@ the TV.
 | Home dashboard | first dashboard / HA default | Path such as `/lovelace/0` |
 | Dashboards | all dashboards | `Title = /path` per line. Sources, rotation, the TV menu and channel up/down |
 | Kiosk mode | hide sidebar and header | Or hide only the sidebar, or off |
-| Zoom | 100 % | Lower values fit more cards on a TV (75 % gives a 1280 px wide layout on 1080p) |
+| Zoom | 100 % | Lower values fit more on a TV (75 % gives a 1280 px wide layout on 1080p). Applies to Webpage dashboards too |
 | Rotate dashboards | off | Cycle the list while nobody uses the remote |
 | Return home after idle | off | After someone browses with the remote |
 | Reload every | off | Full page reload, a safety net for very long uptimes |
@@ -260,11 +265,15 @@ tools/e2e/run.py                      # end to end: Android TV emulator + real H
 tools/e2e/run.py --ha-version 2025.1.4   # ...against another Home Assistant version
 tools/e2e/run.py --ha-url http://192.168.1.20:8123 --ha-token-file token.txt
                                       # ...against your own (admin token; the entry is removed afterwards)
+tools/e2e/run.py --device 192.168.1.30 --ha-url http://192.168.1.20:8123 --ha-token-file token.txt
+                                      # ...on a real TV instead of the emulator
 ```
 
 The end-to-end test needs KVM and pairs the app with a throwaway Home Assistant that
 listens only on 127.0.0.1. It saves screenshots, logs and a summary with the versions
-tested to `tools/e2e/out/`. The manual
+tested to `tools/e2e/out/`. With `--device` it runs the same checks on a real TV over the
+network: turn on *ADB debugging* (Fire TV) or *USB debugging* (Google TV) in the TV's
+developer options, and allow this computer when the TV asks. The manual
 checks for real devices are in [docs/test-plan.md](docs/test-plan.md), and
 [docs/stores/google-play.md](docs/stores/google-play.md) has the values for the Play Console.
 

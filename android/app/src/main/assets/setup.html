@@ -31,6 +31,12 @@
   footer { margin-top: 28px; color: var(--muted); font-size: 14px; }
   footer a { color: var(--accent); }
   #pin { font-size: 28px; letter-spacing: .3em; text-align: center; font-family: ui-monospace, Menlo, monospace; }
+  a.button { display: inline-block; font-weight: 600; padding: 10px 18px; border-radius: 8px; background: var(--accent); color: #062430; text-decoration: none; }
+  #start h2 { margin-top: 0; }
+  #start ol { padding-left: 20px; margin: 0 0 14px; }
+  #start li { margin: 0 0 12px; }
+  .pin { font: 700 22px ui-monospace, Menlo, monospace; letter-spacing: .15em; margin-right: 8px; }
+  #start a:not(.button) { color: var(--accent); }
 </style>
 </head>
 <body>
@@ -38,7 +44,18 @@
   <h1>PleatView</h1>
   <p class="sub" id="device">Connecting…</p>
 
-  <section id="pair">
+  <section id="start" hidden>
+    <h2>Add this TV to Home Assistant</h2>
+    <ol>
+      <li><a class="button" href="https://my.home-assistant.io/redirect/integrations/">Open Devices &amp; services</a></li>
+      <li>Under <em>Discovered</em>, choose <strong>Add</strong> next to this TV.</li>
+      <li>Enter the PIN <span class="pin" id="start-pin"></span><button type="button" class="secondary" id="copy-pin">Copy</button></li>
+    </ol>
+    <p class="note">Not listed? Choose <em>Add integration → PleatView</em> with host <strong id="start-host"></strong> and port <strong id="start-port"></strong>.</p>
+    <p class="note">No PleatView integration in Home Assistant? <a href="#" id="setup-here">Set up this TV here instead</a>.</p>
+  </section>
+
+  <section id="pair" hidden>
     <form id="pair-form">
       <label>PIN shown on the TV
         <input id="pin" inputmode="numeric" autocomplete="one-time-code" maxlength="7" placeholder="000 000" required>
@@ -110,6 +127,9 @@
 "use strict";
 const $ = (selector) => document.querySelector(selector);
 let token = sessionStorage.getItem("pleatview-token");
+// The QR code on the TV carries its PIN in the URL fragment, which never leaves the phone.
+let scannedPin = (/^#pin=(\d{6})$/.exec(location.hash) || [])[1] || "";
+if (location.hash) history.replaceState(null, "", location.pathname + location.search);
 
 async function api(path, options = {}) {
   const headers = { "Content-Type": "application/json" };
@@ -127,10 +147,38 @@ async function api(path, options = {}) {
 }
 
 function showPairing() {
-  $("#pair").hidden = false;
   $("#settings").hidden = true;
+  if (scannedPin) {
+    $("#start-pin").textContent = scannedPin.slice(0, 3) + " " + scannedPin.slice(3);
+    $("#start-host").textContent = location.hostname;
+    $("#start-port").textContent = location.port || "80";
+    $("#start").hidden = false;
+    return;
+  }
+  $("#pair").hidden = false;
   $("#pin").focus();
 }
+
+$("#copy-pin").addEventListener("click", () => {
+  // navigator.clipboard needs HTTPS; the TV serves plain HTTP on the local network.
+  const field = document.createElement("input");
+  field.value = scannedPin;
+  document.body.appendChild(field);
+  field.select();
+  const copied = document.execCommand("copy");
+  field.remove();
+  $("#copy-pin").textContent = copied ? "Copied" : "Copy";
+});
+
+$("#setup-here").addEventListener("click", (event) => {
+  // Pair this page with the scanned PIN; the TV shows a new PIN afterwards.
+  event.preventDefault();
+  $("#pin").value = scannedPin;
+  scannedPin = "";
+  $("#start").hidden = true;
+  $("#pair").hidden = false;
+  $("#pair-form").requestSubmit();
+});
 
 function dashboardsToText(list) {
   return list.map((d) => (d.title && d.title !== d.path ? d.title + " = " + d.path : d.path)).join("\n");
@@ -157,6 +205,7 @@ async function showSettings() {
   $("#token-state").textContent = config.ha_token_set ? "A token is stored on the TV." : "No token stored yet.";
   $("#managed").hidden = !config.rev;
   $("#pair").hidden = true;
+  $("#start").hidden = true;
   $("#settings").hidden = false;
 }
 

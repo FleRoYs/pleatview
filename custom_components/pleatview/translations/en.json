@@ -10,10 +10,6 @@
           "port": "Port"
         }
       },
-      "zeroconf_confirm": {
-        "title": "PleatView TV found",
-        "description": "Set up **{name}** ({host})? Open PleatView on the TV to see its PIN."
-      },
       "pair": {
         "title": "Pair with {name}",
         "description": "Enter the 6-digit PIN shown on the TV. Open PleatView on the TV if it isn't visible; the PIN is also in its menu (press Back). Home Assistant then creates a local-only user for the TV, so it signs in by itself. You can change that later with Reconfigure.",

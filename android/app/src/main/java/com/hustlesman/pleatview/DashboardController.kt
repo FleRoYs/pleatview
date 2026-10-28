@@ -51,6 +51,8 @@ class DashboardController(
     private var webView: WebView? = null
     private var scriptHandler: ScriptHandler? = null
     private var scriptTemplate: String? = null
+    private var zoomHandler: ScriptHandler? = null
+    private var zoomTemplate: String? = null
     private var listenerMode = false
 
     private var currentUrl: String? = null
@@ -196,6 +198,7 @@ class DashboardController(
         }
         configure(view)
         installBridge(view)
+        installZoom(view)
         container.addView(view, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
         webView = view
         view.requestFocus()
@@ -205,6 +208,8 @@ class DashboardController(
         main.removeCallbacks(retryRunnable)
         scriptHandler?.let { runCatching { it.remove() } }
         scriptHandler = null
+        zoomHandler?.let { runCatching { it.remove() } }
+        zoomHandler = null
         webView?.let {
             container.removeView(it)
             it.stopLoading()
@@ -265,6 +270,20 @@ class DashboardController(
             .put("kiosk", config.kiosk)
             .put("viewportWidth", viewportWidth())
         return template.replace("__PLEATVIEW_CONFIG__", pageConfig.toString())
+    }
+
+    /** Web pages shown as dashboards (not Home Assistant) get the same zoom. */
+    private fun installZoom(view: WebView) {
+        if (viewportWidth() == 0 || !WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) return
+        zoomHandler = WebViewCompat.addDocumentStartJavaScript(view, zoomScript(), setOf("*"))
+    }
+
+    private fun zoomScript(): String {
+        val template = zoomTemplate
+            ?: activity.assets.open("zoom.js").bufferedReader().use { it.readText() }.also { zoomTemplate = it }
+        return template
+            .replace("__PLEATVIEW_WIDTH__", viewportWidth().toString())
+            .replace("__PLEATVIEW_HA_ORIGIN__", JSONObject.quote(config.haOrigin ?: ""))
     }
 
     /** CSS width that makes the dashboard render at [Config.zoom] percent. 0 keeps the page default. */
@@ -462,6 +481,8 @@ class DashboardController(
             dashboard = when {
                 path != null -> path
                 url != null && config.isHaUrl(url) -> Config.pathOf(url)
+                // A web page shown as a dashboard stays that dashboard, wherever the site navigates.
+                Config.isHttpUrl(lastTarget) && !config.isHaUrl(lastTarget) -> lastTarget
                 else -> null
             }
         }
@@ -475,7 +496,11 @@ class DashboardController(
 
         override fun onPageFinished(view: WebView, url: String?) {
             if (view !== webView || url == BLANK) return
-            if (!listenerMode && config.isHaUrl(url)) view.evaluateJavascript(script(), null)
+            if (!listenerMode && config.isHaUrl(url)) {
+                view.evaluateJavascript(script(), null)
+            } else if (zoomHandler == null && viewportWidth() != 0 && !config.isHaUrl(url)) {
+                view.evaluateJavascript(zoomScript(), null) // older WebViews: no document-start scripts
+            }
             if (clearHistoryOnLoad) {
                 view.clearHistory()
                 clearHistoryOnLoad = false

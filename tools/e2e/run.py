@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""End-to-end test: PleatView on an Android TV emulator against a real Home Assistant.
+"""End-to-end test: PleatView on an Android TV emulator or a real TV against a real Home Assistant.
 
 The emulator runs in Docker and needs /dev/kvm. By default a throwaway Home Assistant
 also runs in Docker, listening only on 127.0.0.1.
@@ -13,6 +13,11 @@ also runs in Docker, listening only on 127.0.0.1.
     # integration and an admin long-lived token; the pairing is removed afterwards:
     tools/e2e/run.py --ha-url http://192.168.88.250:8123 --ha-token-file ~/.config/pleatview/ha-test-token
 
+    # A real TV on the network instead of the emulator, with ADB debugging (Fire TV) or USB
+    # debugging (Google TV) on. PleatView is reinstalled first, so the run starts at setup.
+    # The first time, the TV asks to allow this computer:
+    tools/e2e/run.py --device 192.168.88.68 --ha-url ... --ha-token-file ...
+
 Screenshots, logs and a summary go to tools/e2e/out/<time>/. Exit status 0 means every
 check passed. docs/test-plan.md lists what is covered.
 """
@@ -22,6 +27,8 @@ from __future__ import annotations
 import argparse
 import functools
 import json
+import os
+import re
 import shutil
 import subprocess
 import sys
@@ -39,12 +46,18 @@ ROOT = Path(__file__).resolve().parents[2]
 PACKAGE = "com.hustlesman.pleatview"
 HA_PORT = 18123  # the throwaway Home Assistant
 TV_PORT = 18765  # adb-forwarded to the app's control port 8765
-MEDIA_PORT = 18080  # serves the test video when using an existing Home Assistant
+MEDIA_PORT = 18080  # serves the test web page, and the video when using an existing Home Assistant
 DEVTOOLS_PORT = 19222
 HA_CONTAINER = "pleatview-e2e-ha"
 TV_CONTAINER = "pleatview-e2e-tv"
 TV_IMAGE = "pleatview-e2e-emulator"
 EMULATOR_HOST = "10.0.2.2"  # how the emulator reaches this machine
+# With --device, adb runs in its own container, on a port the emulator's adb doesn't use.
+# Its key stays on this machine, so the TV only asks to allow it once.
+ADB_CONTAINER = "pleatview-e2e-adb"
+ADB_SERVER_PORT = 5038
+ADB_KEYS = Path("~/.config/pleatview/adb").expanduser()
+ADB_COMMAND = ["docker", "exec", TV_CONTAINER, "adb"]  # main() points this at the TV for --device
 
 HA_CONFIG = f"""\
 homeassistant:
@@ -62,6 +75,11 @@ logger:
   default: warning
   logs:
     custom_components.pleatview: debug
+"""
+
+TEST_PAGE = """<!doctype html>
+<html><head><title>PleatView E2E</title><meta name="viewport" content="width=device-width"></head>
+<body style="background:#123;color:#fff;font:48px sans-serif;margin:64px">PleatView end-to-end web page</body></html>
 """
 
 TEST_VIDEO = ("ffmpeg -loglevel error -y -f lavfi -i testsrc2=duration=30:size=640x360:rate=25 "
@@ -134,7 +152,7 @@ def run(*cmd: str, check: bool = True, input: str | None = None, timeout: float 
 
 
 def adb(*args: str, check: bool = True, timeout: float = 120) -> str:
-    return run("docker", "exec", TV_CONTAINER, "adb", *args, check=check, timeout=timeout)
+    return run(*ADB_COMMAND, *args, check=check, timeout=timeout)
 
 
 def wait_for(description: str, probe, timeout: float = 60, interval: float = 2):
@@ -171,6 +189,14 @@ def http(method: str, url: str, body=None, token: str | None = None, form: bool 
             return response.status, json.loads(text) if text else None
     except urllib.error.HTTPError as err:
         return err.code, err.read().decode()
+
+
+def http_text(url: str) -> tuple[int, str]:
+    try:
+        with urllib.request.urlopen(url, timeout=30) as response:
+            return response.status, response.read().decode()
+    except urllib.error.HTTPError as err:
+        return err.code, ""
 
 
 class HomeAssistant:
@@ -238,8 +264,7 @@ class Report:
         print(f"  SKIP  {name}  ({reason})", flush=True)
 
     def screenshot(self, name: str) -> None:
-        png = subprocess.run(["docker", "exec", TV_CONTAINER, "adb", "exec-out", "screencap", "-p"],
-                             capture_output=True, check=False).stdout
+        png = subprocess.run([*ADB_COMMAND, "exec-out", "screencap", "-p"], capture_output=True, check=False).stdout
         (self.out / f"{name}.png").write_bytes(png)
 
     def count(self, status: str) -> int:
@@ -261,8 +286,19 @@ class Run:
             self.ha.access = Path(args.ha_token_file).expanduser().read_text().strip()
         # Home Assistant's image doubles as a toolbox: ffmpeg and Python with aiohttp.
         self.tools_image = f"ghcr.io/home-assistant/home-assistant:{'stable' if self.external else args.ha_version}"
-        self.video_url = (f"http://{EMULATOR_HOST}:{MEDIA_PORT}/e2e.mp4" if self.external
+        # A real TV is reached directly; the emulator through an adb forward.
+        self.device = args.device
+        tv_host = self.device.rsplit(":", 1)[0] if self.device else ""
+        self.tv_address = (tv_host, 8765) if self.device else ("127.0.0.1", TV_PORT)
+        self.tv_api = f"http://{self.tv_address[0]}:{self.tv_address[1]}"
+        # The test video: Home Assistant's /local in a throwaway Home Assistant, otherwise a
+        # server on this machine's loopback. A real TV reaches it through adb reverse, so no
+        # firewall gets in the way.
+        self.video_url = (f"http://127.0.0.1:{MEDIA_PORT}/e2e.mp4" if self.device
+                          else f"http://{EMULATOR_HOST}:{MEDIA_PORT}/e2e.mp4" if self.external
                           else f"http://{EMULATOR_HOST}:{HA_PORT}/local/e2e.mp4")
+        # A web page on another origin than Home Assistant, shown as a Webpage dashboard.
+        self.page_url = f"http://{'127.0.0.1' if self.device else EMULATOR_HOST}:{MEDIA_PORT}/e2e.html"
         self.entry_id = ""
         self.media_server: ThreadingHTTPServer | None = None
 
@@ -284,12 +320,16 @@ def screen_texts() -> str:
     return adb("shell", "cat", "/sdcard/ui.xml", check=False)
 
 
-def read_pin() -> str:
-    for node in screen_texts().split("<node"):
-        if f"{PACKAGE}:id/setup_pin" in node:
-            text = node.split(' text="', 1)[1].split('"', 1)[0]
-            return "".join(ch for ch in text if ch.isdigit())
+def screen_attribute(view_id: str, attribute: str, texts: str | None = None) -> str:
+    """An attribute of one of PleatView's views in the current UI dump."""
+    for node in (texts if texts is not None else screen_texts()).split("<node"):
+        if f"{PACKAGE}:id/{view_id}" in node and f' {attribute}="' in node:
+            return node.split(f' {attribute}="', 1)[1].split('"', 1)[0]
     return ""
+
+
+def read_pin() -> str:
+    return "".join(ch for ch in screen_attribute("setup_pin", "text") if ch.isdigit())
 
 
 def prepare(r: Run) -> Path:
@@ -304,28 +344,46 @@ def prepare(r: Run) -> Path:
     return ROOT / "android/app/build/outputs/apk/debug/app-debug.apk"
 
 
+def connect_device(r: Run) -> None:
+    ADB_KEYS.mkdir(parents=True, exist_ok=True)
+    run("docker", "run", "-d", "--name", ADB_CONTAINER, "--network", "host", "--user", f"{os.getuid()}:{os.getgid()}",
+        "-e", "HOME=/keys", "-e", f"ANDROID_ADB_SERVER_PORT={ADB_SERVER_PORT}", "-v", f"{ADB_KEYS}:/keys",
+        TV_IMAGE, "sleep", "infinity")
+    print("  If the TV asks to allow USB debugging, tick \"Always allow\" and choose OK.", flush=True)
+
+    def authorized():
+        run("docker", "exec", ADB_CONTAINER, "adb", "connect", r.device, check=False, timeout=30)
+        return adb("get-state", check=False, timeout=30).strip() == "device"
+
+    wait_for(f"adb access to {r.device} (is ADB or USB debugging on?)", authorized, timeout=180, interval=5)
+
+
 def start(r: Run, work: Path, apk: Path) -> None:
-    print("Starting the TV emulator" + ("" if r.external else " and Home Assistant") + "…", flush=True)
-    run("docker", "rm", "-f", TV_CONTAINER, *([] if r.external else [HA_CONTAINER]), check=False)
+    tv = f"the TV at {r.device}" if r.device else "the TV emulator"
+    print(f"Starting {tv}" + ("" if r.external else " and Home Assistant") + "…", flush=True)
+    run("docker", "rm", "-f", TV_CONTAINER, ADB_CONTAINER, *([] if r.external else [HA_CONTAINER]), check=False)
     # The test video exists before Home Assistant starts: HA only serves /local when its www
     # folder exists at startup.
     media = work / "media"
     media.mkdir()
     run("docker", "run", "--rm", "--entrypoint", "sh", "-v", f"{media}:/out", r.tools_image, "-c",
         f"{TEST_VIDEO} /out/e2e.mp4 && chmod a+r /out/e2e.mp4")
-    if r.external:
-        handler = functools.partial(QuietFiles, directory=str(media))
-        r.media_server = QuietServer(("127.0.0.1", MEDIA_PORT), handler)
-        threading.Thread(target=r.media_server.serve_forever, daemon=True).start()
-    else:
+    (media / "e2e.html").write_text(TEST_PAGE)
+    handler = functools.partial(QuietFiles, directory=str(media))
+    r.media_server = QuietServer(("127.0.0.1", MEDIA_PORT), handler)
+    threading.Thread(target=r.media_server.serve_forever, daemon=True).start()
+    if not r.external:
         (work / "ha").mkdir()
         (work / "ha/configuration.yaml").write_text(HA_CONFIG)
         run("docker", "run", "-d", "--name", HA_CONTAINER, "--network", "host", "-e", "TZ=UTC",
             "-v", f"{work / 'ha'}:/config", "-v", f"{media}:/config/www:ro",
             "-v", f"{ROOT / 'custom_components'}:/config/custom_components:ro", r.tools_image)
-    run("docker", "run", "-d", "--name", TV_CONTAINER, "--network", "host", "--device", "/dev/kvm",
-        "--cpus", "2", TV_IMAGE, "emulator", "-avd", "tv", "-no-window", "-no-audio", "-no-boot-anim",
-        "-gpu", "swiftshader_indirect", "-no-snapshot", "-memory", "3072", "-cores", "2", "-no-metrics")
+    if r.device:
+        connect_device(r)
+    else:
+        run("docker", "run", "-d", "--name", TV_CONTAINER, "--network", "host", "--device", "/dev/kvm",
+            "--cpus", "2", TV_IMAGE, "emulator", "-avd", "tv", "-no-window", "-no-audio", "-no-boot-anim",
+            "-gpu", "swiftshader_indirect", "-no-snapshot", "-memory", "3072", "-cores", "2", "-no-metrics")
     if not r.external:
         # Home Assistant first: its HTTP port must be promoted within five minutes.
         wait_for("Home Assistant to start",
@@ -335,15 +393,30 @@ def start(r: Run, work: Path, apk: Path) -> None:
         # five minutes unless an admin promotes it. Older versions don't know the command.
         promoted = ws_call(r, {"type": "http/config/promote"}).get("success")
         print(f"  HTTP config promoted: {'yes' if promoted else 'not needed'}", flush=True)
-    wait_for("the emulator to boot",
+    wait_for("the TV to boot",
              lambda: adb("shell", "getprop", "sys.boot_completed", check=False, timeout=30).strip() == "1",
              timeout=420)
-    run("docker", "cp", str(apk), f"{TV_CONTAINER}:/tmp/pleatview.apk")
+    run("docker", "cp", str(apk), f"{ADB_CONTAINER if r.device else TV_CONTAINER}:/tmp/pleatview.apk")
+    if r.device:
+        # Start at the setup screen, whatever was installed before (a release build can't
+        # be updated with a debug one anyway).
+        adb("uninstall", PACKAGE, check=False)
     # The package manager can still be busy for a moment after boot_completed.
     wait_for("the APK to install", lambda: adb("install", "-r", "/tmp/pleatview.apk"), timeout=120, interval=5)
     adb("shell", "am", "start", "-n", f"{PACKAGE}/.MainActivity")
-    adb("forward", f"tcp:{TV_PORT}", "tcp:8765")
-    wait_for("the TV's control API", lambda: http("GET", f"http://127.0.0.1:{TV_PORT}/api/info")[0] == 200)
+    if r.device:
+        adb("reverse", f"tcp:{MEDIA_PORT}", f"tcp:{MEDIA_PORT}")
+    else:
+        adb("forward", f"tcp:{TV_PORT}", "tcp:8765")
+    wait_for("the TV's control API", lambda: http("GET", f"{r.tv_api}/api/info")[0] == 200)
+
+
+def describe_tv() -> str:
+    props = dict(re.findall(r"^\[([^\]]+)\]: \[([^\]]*)\]", adb("shell", "getprop", check=False), re.M))
+    fire_os = props.get("ro.build.version.name", "")  # "Fire OS 7.6.6.9 (PS7669/4917)" on Fire TV
+    return (f"{props.get('ro.product.manufacturer', '?')} {props.get('ro.product.model', '?')}, "
+            f"Android {props.get('ro.build.version.release', '?')}"
+            + (f", {fire_os.split(' (')[0]}" if fire_os.startswith("Fire OS") else ""))
 
 
 def ws_call(r: Run, message: dict) -> dict:
@@ -371,7 +444,14 @@ def checks(r: Run, report: Report, apk: Path) -> None:
     def setup_screen():
         entity["pin"] = wait_for("the PIN on the setup screen", read_pin, timeout=60)
         report.screenshot("01-setup")
-        return "PIN shown"
+        # The QR code opens the TV's phone page with the PIN filled in.
+        code = screen_attribute("setup_qr", "content-desc")
+        if not (code.startswith("http://") and code.endswith(f":8765/#pin={entity['pin']}")):
+            raise AssertionError(f"the QR code links to {code!r}, not the phone page with PIN {entity['pin']}")
+        status, page = http_text(f"{r.tv_api}/")
+        if status != 200 or 'id="start"' not in page:
+            raise AssertionError(f"the phone page doesn't offer adding the TV ({status})")
+        return f"PIN and QR code shown ({code.split('#')[0]})"
 
     def pairing():
         _, flow = ha.api("POST", "/api/config/config_entries/flow", {"handler": "pleatview"})
@@ -379,7 +459,7 @@ def checks(r: Run, report: Report, apk: Path) -> None:
             raise AssertionError(f"couldn't start the PleatView setup: {str(flow)[:200]}")
         flow_path = f"/api/config/config_entries/flow/{flow['flow_id']}"
         try:
-            _, result = ha.api("POST", flow_path, {"host": "127.0.0.1", "port": TV_PORT})
+            _, result = ha.api("POST", flow_path, {"host": r.tv_address[0], "port": r.tv_address[1]})
             if result.get("step_id") != "pair":
                 raise AssertionError(f"expected the PIN step, got {result}")
             _, result = ha.api("POST", flow_path, {"pin": "000000"})
@@ -469,6 +549,30 @@ def checks(r: Run, report: Report, apk: Path) -> None:
                  lambda: not str(state()["attributes"].get("dashboard", "")).startswith("/map"), timeout=30)
         return f"{home} → /map → home"
 
+    def webpage():
+        # Home Assistant would show the site in a frame, where many sites refuse to load or
+        # lose their cookies; PleatView opens the site itself.
+        created = ws_call(r, {"type": "lovelace/dashboards/create", "url_path": "dashboard-pleatview-e2e",
+                              "title": "E2E web page", "mode": "storage", "show_in_sidebar": True})
+        if not created.get("success"):
+            raise AssertionError(f"couldn't create a Webpage dashboard: {created}")
+        try:
+            ws_call(r, {"type": "lovelace/config/save", "url_path": "dashboard-pleatview-e2e",
+                        "config": {"strategy": {"type": "iframe", "url": r.page_url}}})
+            wait_for("the new dashboard among the TV's sources",
+                     lambda: "E2E web page" in (state()["attributes"].get("source_list") or []), timeout=20)
+            ha.call("pleatview", "show_dashboard", {"entity_id": entity["id"], "path": "/dashboard-pleatview-e2e"})
+            shown = wait_for("the web page on the TV",
+                             lambda: (s := state())["attributes"].get("url") == r.page_url and s, timeout=30)
+            time.sleep(2)
+            report.screenshot("07-webpage")
+            if shown["attributes"].get("source") != "E2E web page":
+                raise AssertionError(f"the TV shows the page, but its source is {shown['attributes'].get('source')!r}")
+        finally:
+            ws_call(r, {"type": "lovelace/dashboards/delete", "dashboard_id": created["result"]["id"]})
+            ha.call("pleatview", "home", {"entity_id": entity["id"]})
+        return f"{r.page_url} opened directly"
+
     def standby():
         ha.call("media_player", "turn_off", {"entity_id": entity["id"]})
         wait_for("standby", lambda: state()["state"] == "off", timeout=20)
@@ -485,7 +589,8 @@ def checks(r: Run, report: Report, apk: Path) -> None:
     def update_in_place():
         adb("install", "-r", "/tmp/pleatview.apk")
         adb("shell", "am", "start", "-n", f"{PACKAGE}/.MainActivity")
-        adb("forward", f"tcp:{TV_PORT}", "tcp:8765")
+        if not r.device:
+            adb("forward", f"tcp:{TV_PORT}", "tcp:8765")
         wait_for("the TV after the update", ready, timeout=180)
 
     report.check("Setup screen shows a PIN", setup_screen)
@@ -498,6 +603,7 @@ def checks(r: Run, report: Report, apk: Path) -> None:
         ("Video plays and stops", video),
         ("Camera without a stream shows as picture-in-picture", camera),
         ("show_dashboard and home switch dashboards", dashboards),
+        ("Webpage dashboard opens the site directly", webpage),
         ("turn_off and turn_on", standby),
         ("Recovers after a Home Assistant restart", ha_restart),
         ("Update in place keeps the pairing", update_in_place),
@@ -513,11 +619,19 @@ def main() -> int:
     parser.add_argument("--ha-version", default="stable", help="throwaway Home Assistant image tag (default: stable)")
     parser.add_argument("--ha-url", help="use this existing Home Assistant instead of a throwaway one")
     parser.add_argument("--ha-token-file", help="file holding an admin long-lived token for --ha-url")
+    parser.add_argument("--device", metavar="HOST[:PORT]", help="test on this TV over network adb, not the emulator")
     parser.add_argument("--apk", help="APK to test (default: build a debug APK)")
     parser.add_argument("--keep", action="store_true", help="leave the containers running")
     args = parser.parse_args()
     if bool(args.ha_url) != bool(args.ha_token_file):
         parser.error("--ha-url and --ha-token-file go together")
+    if args.device and not args.ha_url:
+        parser.error("--device needs --ha-url: the TV must reach Home Assistant over the network")
+    if args.device:
+        if ":" not in args.device:
+            args.device += ":5555"
+        global ADB_COMMAND  # noqa: PLW0603 - one switch for every adb call
+        ADB_COMMAND = ["docker", "exec", ADB_CONTAINER, "adb", "-s", args.device]
 
     r = Run(args)
     out = ROOT / "tools/e2e/out" / datetime.now().strftime("%Y%m%d-%H%M%S")
@@ -527,17 +641,18 @@ def main() -> int:
     try:
         apk = prepare(r)
         start(r, work, apk)
-        version = http("GET", f"http://127.0.0.1:{TV_PORT}/api/info")[1].get("app_version")
+        version = http("GET", f"{r.tv_api}/api/info")[1].get("app_version")
         ha_version = r.ha.api("GET", "/api/config")[1].get("version")
         where = r.ha.url if r.external else f"{args.ha_version}, throwaway"
-        report.title = f"PleatView {version} against Home Assistant {ha_version} ({where})"
+        report.title = f"PleatView {version} on {describe_tv()} against Home Assistant {ha_version} ({where})"
         print(f"Running checks: {report.title}", flush=True)
         checks(r, report, apk)
     except Exception as err:  # noqa: BLE001
         report.results.append(("FAIL", "Environment", str(err)))
         print(f"  FAIL  Environment  ({err})")
     finally:
-        (out / "logcat.txt").write_text(adb("logcat", "-d", "-s", "PleatView:*", "chromium:E", check=False, timeout=60))
+        # Everything PleatView logs, plus warnings and errors from the rest (the player, WebView).
+        (out / "logcat.txt").write_text(adb("logcat", "-d", "PleatView:V", "*:W", check=False, timeout=60))
         if r.external and r.entry_id:
             # Removing the entry also deletes the user it created and resets the TV.
             r.ha.api("DELETE", f"/api/config/config_entries/entry/{r.entry_id}")
@@ -546,10 +661,11 @@ def main() -> int:
             (out / "home-assistant.log").write_text(logs.stdout + logs.stderr)
         if r.media_server:
             r.media_server.shutdown()
+        tv_container = ADB_CONTAINER if r.device else TV_CONTAINER
         if args.keep:
-            print(f"Containers kept: {TV_CONTAINER}" + ("" if r.external else f", {HA_CONTAINER} on {r.ha.url}"))
+            print(f"Containers kept: {tv_container}" + ("" if r.external else f", {HA_CONTAINER} on {r.ha.url}"))
         else:
-            run("docker", "rm", "-f", TV_CONTAINER, *([] if r.external else [HA_CONTAINER]), check=False)
+            run("docker", "rm", "-f", tv_container, *([] if r.external else [HA_CONTAINER]), check=False)
         # Home Assistant writes its config as root; remove it from inside a container.
         run("docker", "run", "--rm", "-v", f"{work}:/work", TV_IMAGE, "rm", "-rf", "/work/ha", "/work/media",
             check=False)

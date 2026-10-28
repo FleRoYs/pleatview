@@ -80,10 +80,8 @@ async def test_zeroconf_flow(hass: HomeAssistant, fake_tv: FakeTV) -> None:
     result = await hass.config_entries.flow.async_init(
         DOMAIN, context={"source": SOURCE_ZEROCONF}, data=discovery(fake_tv)
     )
-    assert result["step_id"] == "zeroconf_confirm"
-    assert result["description_placeholders"]["name"] == "Living Room TV"
-    result = await hass.config_entries.flow.async_configure(result["flow_id"], {})
     assert result["step_id"] == "pair"
+    assert result["description_placeholders"]["name"] == "Living Room TV"
     with patch(SETUP, return_value=True):
         result = await _pair(hass, result["flow_id"], fake_tv)
     assert result["type"] is FlowResultType.CREATE_ENTRY
@@ -95,7 +93,7 @@ async def test_manual_setup_while_discovered(hass: HomeAssistant, fake_tv: FakeT
     discovered = await hass.config_entries.flow.async_init(
         DOMAIN, context={"source": SOURCE_ZEROCONF}, data=discovery(fake_tv)
     )
-    assert discovered["step_id"] == "zeroconf_confirm"
+    assert discovered["step_id"] == "pair"
     result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": SOURCE_USER})
     result = await hass.config_entries.flow.async_configure(
         result["flow_id"], {CONF_HOST: "127.0.0.1", CONF_PORT: fake_tv.port}

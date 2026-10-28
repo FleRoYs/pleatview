@@ -37,7 +37,7 @@ async def fake_tv(socket_enabled) -> AsyncGenerator[FakeTV]:
     await runner.cleanup()
 
 
-def make_entry(tv: FakeTV, **data) -> MockConfigEntry:
+def make_entry(tv: FakeTV, options: dict | None = None, **data) -> MockConfigEntry:
     """A config entry already paired with the fake TV."""
     return MockConfigEntry(
         domain=DOMAIN,
@@ -50,7 +50,7 @@ def make_entry(tv: FakeTV, **data) -> MockConfigEntry:
             CONF_AUTH_MODE: AUTH_NONE,
             **data,
         },
-        options={"dashboards": "Home = /lovelace/0\nCameras = /dashboard-cams"},
+        options=options if options is not None else {"dashboards": "Home = /lovelace/0\nCameras = /dashboard-cams"},
     )
 
 

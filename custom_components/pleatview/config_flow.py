@@ -124,17 +124,8 @@ class PleatViewConfigFlow(ConfigFlow, domain=DOMAIN):
             return self.async_abort(reason="cannot_connect")
         self._abort_if_unique_id_configured(updates={CONF_HOST: self._host, CONF_PORT: self._port})
         self.context["title_placeholders"] = {"name": self._name}
-        return await self.async_step_zeroconf_confirm()
-
-    async def async_step_zeroconf_confirm(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
-        """Confirm a discovered TV."""
-        if user_input is not None:
-            return await self.async_step_pair()
-        self._set_confirm_only()
-        return self.async_show_form(
-            step_id="zeroconf_confirm",
-            description_placeholders={"name": self._name, "host": self._host},
-        )
+        # Entering the PIN is the confirmation: no separate "Set up this TV?" step.
+        return await self.async_step_pair()
 
     async def async_step_pair(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         """Ask for the PIN shown on the TV."""
