@@ -293,8 +293,9 @@ back to the local debug key.
 ## Support
 
 PleatView is free and open source, and every feature stays free for everyone. If it's
-useful to you, you can [chip in](https://donate.stripe.com/cNifZg4Wudug46O4X38Ra00) towards test devices and app-store fees. Bug
-reports and ideas help just as much.
+useful to you, you can [chip in](https://donate.stripe.com/cNifZg4Wudug46O4X38Ra00) towards test devices and app-store fees
+(payments go through Stripe and appear as Hustlesman). Bug reports and ideas help just as
+much.
 
 ## License
 
