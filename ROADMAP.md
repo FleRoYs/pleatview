@@ -20,12 +20,12 @@ on their own.
 
 ## Status
 
-Last updated 28 October 2026. **Current milestone: M0.**
+Last updated 28 October 2026. **Current milestone: M1** (M0 finished early).
 
 | Milestone | Target | Needs first | Status |
 | --- | --- | --- | --- |
-| [M0](#m0--foundation) Foundation | Fri 6 Nov 2026 | — | In progress |
-| [M1](#m1--validated-on-real-android-tv-hardware) Validated on real Android TV hardware | Fri 20 Nov 2026 | M0, devices | Not started |
+| [M0](#m0--foundation) Foundation | Fri 6 Nov 2026 | — | Done 28 Oct |
+| [M1](#m1--validated-on-real-android-tv-hardware) Validated on real Android TV hardware | Fri 20 Nov 2026 | M0, devices | In progress |
 | [M2](#m2--public-beta) Public beta and Google Play closed test | Fri 4 Dec 2026 | M1, Play account, 12 testers | Not started |
 | [M3](#m3--google-play-and-amazon-appstore) Google Play and Amazon Appstore | Fri 15 Jan 2027 | M2, store reviews | Not started |
 | [M4](#m4--web-player) Web player for any TV browser | Fri 29 Jan 2027 | M3 submitted | Not started |
@@ -85,9 +85,9 @@ These take days to weeks to come back, so they start now, alongside M0.
 - [x] "My Home Assistant" buttons that open PleatView in HACS and start its setup
 - [x] Setup ends at the PIN: a dedicated user by default, other sign-in methods under Reconfigure
 - [x] Release key in GitHub secrets; `tools/bump-version.sh` keeps app and integration versions in step
-- [ ] `pleatview.hustlesman.com` live over HTTPS
+- [x] `pleatview.hustlesman.com` live over HTTPS
 - [x] v0.1.1 tagged and published ([release](https://github.com/FleRoYs/pleatview/releases/tag/v0.1.1))
-- [ ] Long-lead tasks above started (tracked as issues)
+- [x] Long-lead tasks tracked as issues in the milestones that need them
 
 **Exit:** CI green on `main`, the site is live, and a signed v0.1.1 APK can be downloaded
 from GitHub Releases.
