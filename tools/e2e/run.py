@@ -89,21 +89,21 @@ async def main(port, expression):
 asyncio.run(main(int(sys.argv[1]), sys.stdin.read()))
 """
 
-# Home Assistant 2026.10+ keeps a changed HTTP port on trial and reverts it after five
-# minutes unless an admin promotes it. Older versions don't know the command.
-PROMOTE_SCRIPT = """
+# Sends one Home Assistant websocket command; reads the token and the command from stdin.
+WS_SCRIPT = """
 import asyncio, json, sys
 import aiohttp
 
-async def main(url, token):
+async def main(url):
+    token, message = sys.stdin.read().split("\\n", 1)
     async with aiohttp.ClientSession() as s, s.ws_connect(url + "/api/websocket") as ws:
         await ws.receive_json()
         await ws.send_json({"type": "auth", "access_token": token})
         await ws.receive_json()
-        await ws.send_json({"id": 1, "type": "http/config/promote"})
+        await ws.send_json({"id": 1, **json.loads(message)})
         print(json.dumps(await ws.receive_json()))
 
-asyncio.run(main(sys.argv[1], sys.stdin.read().strip()))
+asyncio.run(main(sys.argv[1]))
 """
 
 KIOSK_PROBE = """
@@ -129,7 +129,7 @@ def run(*cmd: str, check: bool = True, input: str | None = None, timeout: float 
             raise RuntimeError(f"`{' '.join(cmd[:4])} …` timed out after {timeout:.0f}s") from None
         return ""
     if check and result.returncode != 0:
-        raise RuntimeError(f"`{' '.join(cmd[:4])} …` failed: {(result.stderr or result.stdout).strip()[:300]}")
+        raise RuntimeError(f"`{' '.join(cmd[:4])} …` failed: {f'{result.stderr} {result.stdout}'.strip()[:300]}")
     return result.stdout
 
 
@@ -219,6 +219,7 @@ class HomeAssistant:
 class Report:
     def __init__(self, out: Path) -> None:
         self.out = out
+        self.title = ""
         self.results: list[tuple[str, str, str]] = []
 
     def check(self, name: str, fn) -> None:
@@ -271,6 +272,13 @@ class QuietFiles(SimpleHTTPRequestHandler):
         pass
 
 
+class QuietServer(ThreadingHTTPServer):
+    def handle_error(self, request, client_address) -> None:
+        # The player hangs up mid-file when a video stops.
+        if not isinstance(sys.exc_info()[1], ConnectionError):
+            super().handle_error(request, client_address)
+
+
 def screen_texts() -> str:
     adb("shell", "uiautomator", "dump", "/sdcard/ui.xml", check=False)
     return adb("shell", "cat", "/sdcard/ui.xml", check=False)
@@ -307,7 +315,7 @@ def start(r: Run, work: Path, apk: Path) -> None:
         f"{TEST_VIDEO} /out/e2e.mp4 && chmod a+r /out/e2e.mp4")
     if r.external:
         handler = functools.partial(QuietFiles, directory=str(media))
-        r.media_server = ThreadingHTTPServer(("127.0.0.1", MEDIA_PORT), handler)
+        r.media_server = QuietServer(("127.0.0.1", MEDIA_PORT), handler)
         threading.Thread(target=r.media_server.serve_forever, daemon=True).start()
     else:
         (work / "ha").mkdir()
@@ -323,17 +331,25 @@ def start(r: Run, work: Path, apk: Path) -> None:
         wait_for("Home Assistant to start",
                  lambda: http("GET", f"{r.ha.url}/api/onboarding")[0] == 200, timeout=420)
         r.ha.onboard()
-        result = run("docker", "run", "--rm", "-i", "--network", "host", "--entrypoint", "python3", r.tools_image,
-                     "-c", PROMOTE_SCRIPT, r.ha.url, input=r.ha.access, check=False, timeout=120)
-        print(f"  HTTP config promoted: {'yes' if '\"success\": true' in result else 'not needed'}", flush=True)
+        # Home Assistant 2026.10+ keeps a changed HTTP port on trial and reverts it after
+        # five minutes unless an admin promotes it. Older versions don't know the command.
+        promoted = ws_call(r, {"type": "http/config/promote"}).get("success")
+        print(f"  HTTP config promoted: {'yes' if promoted else 'not needed'}", flush=True)
     wait_for("the emulator to boot",
              lambda: adb("shell", "getprop", "sys.boot_completed", check=False, timeout=30).strip() == "1",
              timeout=420)
     run("docker", "cp", str(apk), f"{TV_CONTAINER}:/tmp/pleatview.apk")
-    adb("install", "-r", "/tmp/pleatview.apk")
+    # The package manager can still be busy for a moment after boot_completed.
+    wait_for("the APK to install", lambda: adb("install", "-r", "/tmp/pleatview.apk"), timeout=120, interval=5)
     adb("shell", "am", "start", "-n", f"{PACKAGE}/.MainActivity")
     adb("forward", f"tcp:{TV_PORT}", "tcp:8765")
     wait_for("the TV's control API", lambda: http("GET", f"http://127.0.0.1:{TV_PORT}/api/info")[0] == 200)
+
+
+def ws_call(r: Run, message: dict) -> dict:
+    output = run("docker", "run", "--rm", "-i", "--network", "host", "--entrypoint", "python3", r.tools_image,
+                 "-c", WS_SCRIPT, r.ha.url, input=f"{r.ha.access}\n{json.dumps(message)}", check=False, timeout=120)
+    return json.loads(output) if output.strip() else {}
 
 
 def devtools(r: Run, expression: str):
@@ -359,17 +375,24 @@ def checks(r: Run, report: Report, apk: Path) -> None:
 
     def pairing():
         _, flow = ha.api("POST", "/api/config/config_entries/flow", {"handler": "pleatview"})
-        flow_id = flow["flow_id"]
-        _, result = ha.api("POST", f"/api/config/config_entries/flow/{flow_id}",
-                           {"host": "127.0.0.1", "port": TV_PORT})
-        if result.get("step_id") != "pair":
-            raise AssertionError(f"expected the PIN step, got {result}")
-        _, result = ha.api("POST", f"/api/config/config_entries/flow/{flow_id}", {"pin": "000000"})
-        if result.get("errors") != {"base": "invalid_pin"}:
-            raise AssertionError(f"wrong PIN was not rejected: {result}")
-        _, result = ha.api("POST", f"/api/config/config_entries/flow/{flow_id}", {"pin": entity["pin"]})
-        if result.get("type") != "create_entry":
-            raise AssertionError(f"setup didn't finish at the PIN: {result}")
+        if not isinstance(flow, dict) or "flow_id" not in flow:
+            raise AssertionError(f"couldn't start the PleatView setup: {str(flow)[:200]}")
+        flow_path = f"/api/config/config_entries/flow/{flow['flow_id']}"
+        try:
+            _, result = ha.api("POST", flow_path, {"host": "127.0.0.1", "port": TV_PORT})
+            if result.get("step_id") != "pair":
+                raise AssertionError(f"expected the PIN step, got {result}")
+            _, result = ha.api("POST", flow_path, {"pin": "000000"})
+            if result.get("errors") != {"base": "invalid_pin"}:
+                raise AssertionError(f"wrong PIN was not rejected: {result}")
+            _, result = ha.api("POST", flow_path, {"pin": entity["pin"]})
+            if result.get("type") != "create_entry":
+                raise AssertionError(f"setup didn't finish at the PIN: {result}")
+        except Exception:
+            # A flow left open makes the next run against the same Home Assistant abort
+            # with "already_in_progress".
+            ha.api("DELETE", flow_path)
+            raise
         r.entry_id = result["result"]["entry_id"]
         _, states = ha.api("GET", "/api/states")
         entity["id"] = next(s["entity_id"] for s in states
@@ -505,8 +528,10 @@ def main() -> int:
         apk = prepare(r)
         start(r, work, apk)
         version = http("GET", f"http://127.0.0.1:{TV_PORT}/api/info")[1].get("app_version")
-        target = r.ha.url if r.external else f"Home Assistant {args.ha_version} (throwaway)"
-        print(f"Running checks: PleatView {version} against {target}", flush=True)
+        ha_version = r.ha.api("GET", "/api/config")[1].get("version")
+        where = r.ha.url if r.external else f"{args.ha_version}, throwaway"
+        report.title = f"PleatView {version} against Home Assistant {ha_version} ({where})"
+        print(f"Running checks: {report.title}", flush=True)
         checks(r, report, apk)
     except Exception as err:  # noqa: BLE001
         report.results.append(("FAIL", "Environment", str(err)))
@@ -531,6 +556,8 @@ def main() -> int:
         shutil.rmtree(work, ignore_errors=True)
 
     lines = [f"{status}  {name}" + (f"  ({detail})" if detail else "") for status, name, detail in report.results]
+    if report.title:
+        lines[:0] = [report.title, ""]
     (out / "summary.txt").write_text("\n".join(lines) + "\n")
     print(f"\n{report.count('PASS')} passed, {report.count('FAIL')} failed, {report.count('SKIP')} skipped. "
           f"Artifacts: {out}")

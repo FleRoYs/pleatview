@@ -5,6 +5,7 @@ from __future__ import annotations
 from ipaddress import ip_address
 from unittest.mock import patch
 
+from custom_components.pleatview.api import PleatViewError
 from custom_components.pleatview.const import (
     AUTH_MANAGED,
     AUTH_NONE,
@@ -90,6 +91,22 @@ async def test_zeroconf_flow(hass: HomeAssistant, fake_tv: FakeTV) -> None:
     assert result["data"][CONF_ALLOW_CONTROL] is True
 
 
+async def test_manual_setup_while_discovered(hass: HomeAssistant, fake_tv: FakeTV) -> None:
+    discovered = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": SOURCE_ZEROCONF}, data=discovery(fake_tv)
+    )
+    assert discovered["step_id"] == "zeroconf_confirm"
+    result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": SOURCE_USER})
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {CONF_HOST: "127.0.0.1", CONF_PORT: fake_tv.port}
+    )
+    assert result["step_id"] == "pair"
+    with patch(SETUP, return_value=True):
+        result = await _pair(hass, result["flow_id"], fake_tv)
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert not hass.config_entries.flow.async_progress_by_handler(DOMAIN)
+
+
 async def test_zeroconf_updates_moved_tv(hass: HomeAssistant, fake_tv: FakeTV) -> None:
     entry = make_entry(fake_tv)
     entry.add_to_hass(hass)
@@ -98,6 +115,22 @@ async def test_zeroconf_updates_moved_tv(hass: HomeAssistant, fake_tv: FakeTV) -
         result = await hass.config_entries.flow.async_init(
             DOMAIN, context={"source": SOURCE_ZEROCONF}, data=discovery(fake_tv)
         )
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "already_configured"
+    assert entry.data[CONF_HOST] == "127.0.0.1"
+
+
+async def test_zeroconf_keeps_tv_where_it_answers(hass: HomeAssistant, fake_tv: FakeTV) -> None:
+    entry = make_entry(fake_tv)
+    entry.add_to_hass(hass)
+    info = discovery(fake_tv)
+    info.ip_address = ip_address("10.0.2.15")
+    info.ip_addresses = [info.ip_address]
+    with (
+        patch(SETUP, return_value=True),
+        patch("custom_components.pleatview.api.PleatViewClient.get_info", side_effect=PleatViewError("unreachable")),
+    ):
+        result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": SOURCE_ZEROCONF}, data=info)
     assert result["type"] is FlowResultType.ABORT
     assert result["reason"] == "already_configured"
     assert entry.data[CONF_HOST] == "127.0.0.1"

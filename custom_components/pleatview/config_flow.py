@@ -19,7 +19,11 @@ from homeassistant.const import CONF_HOST, CONF_PORT
 from homeassistant.core import callback
 from homeassistant.helpers import selector
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
-from homeassistant.helpers.service_info.zeroconf import ZeroconfServiceInfo
+
+try:
+    from homeassistant.helpers.service_info.zeroconf import ZeroconfServiceInfo
+except ImportError:  # Home Assistant 2025.1
+    from homeassistant.components.zeroconf import ZeroconfServiceInfo
 
 from .api import InvalidPin, PleatViewClient, PleatViewError, TooManyAttempts
 from .const import (
@@ -92,7 +96,9 @@ class PleatViewConfigFlow(ConfigFlow, domain=DOMAIN):
             except PleatViewError:
                 errors["base"] = "cannot_connect"
             else:
-                await self.async_set_unique_id(self._info["id"])
+                # An address typed in wins over an open discovery of the same TV, which may be
+                # stuck on an address Home Assistant can't reach. Creating the entry closes it.
+                await self.async_set_unique_id(self._info["id"], raise_on_progress=False)
                 self._abort_if_unique_id_configured(updates={CONF_HOST: self._host, CONF_PORT: self._port})
                 return await self.async_step_pair()
         return self.async_show_form(
@@ -109,11 +115,14 @@ class PleatViewConfigFlow(ConfigFlow, domain=DOMAIN):
         self._host = discovery_info.host
         self._port = discovery_info.port or DEFAULT_PORT
         await self.async_set_unique_id(device_id)
-        self._abort_if_unique_id_configured(updates={CONF_HOST: self._host, CONF_PORT: self._port})
         try:
             self._info = await self._client().get_info()
         except PleatViewError:
+            # TVs can advertise addresses Home Assistant can't reach, such as a VPN's or an
+            # emulator's. A configured TV only moves to an address where it answers.
+            self._abort_if_unique_id_configured()
             return self.async_abort(reason="cannot_connect")
+        self._abort_if_unique_id_configured(updates={CONF_HOST: self._host, CONF_PORT: self._port})
         self.context["title_placeholders"] = {"name": self._name}
         return await self.async_step_zeroconf_confirm()
 

@@ -36,9 +36,10 @@ Progress is tracked in [GitHub milestones](https://github.com/FleRoYs/pleatview/
 Issues exist only for the current milestone and the long-lead tasks; each later milestone
 gets its issues when it starts.
 
-Done so far: v0.1.1 is published as a signed release. The Android TV app and Home Assistant integration work end to end
-on an Android TV 16 emulator against Home Assistant 2026.10. That covers pairing, automatic
-sign-in, kiosk mode, casting, cameras, notifications and recovery from crashes and outages.
+Done so far: v0.1.1 is published as a signed release. One command (`tools/e2e/run.py`) tests
+the Android TV app and the Home Assistant integration together on an Android TV 16 emulator:
+pairing, automatic sign-in, kiosk mode, casting, cameras, notifications, standby, updates and
+recovery from a Home Assistant restart. It passes against Home Assistant 2025.1 and 2026.10.
 25 app tests and 21 integration tests pass. Nothing has run on real TV hardware yet.
 
 ## How we stay on track
@@ -102,11 +103,13 @@ from GitHub Releases.
       text-to-speech announcements, notifications in and over other apps, standby and
       wake, launch at boot, re-pairing after a data wipe, network loss and Home
       Assistant restarts.
-- [ ] Scripted end-to-end test in `tools/e2e` (emulator and Home Assistant in Docker),
+- [x] Scripted end-to-end test in `tools/e2e` (emulator and Home Assistant in Docker),
       runnable with one command
 - [ ] Test plan passed on: Google TV Streamer, Chromecast with Google TV (HD, the
       low-memory worst case), a TV with Google TV built in, Fire TV (Fire OS 8)
-- [ ] Home Assistant versions: oldest supported (2025.1), current stable (2026.11), beta
+- [ ] Home Assistant versions: oldest supported (2025.1), current stable, beta. The
+      end-to-end test passed on 2025.1.4, 2026.10.4 and the 2026.11 nightly build on 28 Oct.
+      Still to run: the 2026.11 beta (due 28 Oct), and the stable release again before v0.2.0
 - [ ] 7-day soak on the Streamer and the Chromecast HD, with a dashboard showing a live
       camera and rotation on. No crash or blank screen, stable memory (checked daily),
       and automatic recovery from a router reboot and a Home Assistant restart.
@@ -258,3 +261,4 @@ Ideas we'll consider after 1.0, or between milestones if there's slack:
 - Assist (voice) on the TV
 - Dashboard schedules (for example, a calendar in the morning and energy in the evening)
 - Several Home Assistant servers on one TV
+- Run the end-to-end test in CI every week against the Home Assistant beta (GitHub runners have KVM)
