@@ -1,0 +1,82 @@
+# Test plan
+
+What we check before a release and on each reference device. `tools/e2e/run.py` automates
+the items marked **(auto)** on an Android TV emulator against a real Home Assistant; the
+rest need a real device or a person.
+
+Record a manual run as a GitHub issue titled `Test run: vX.Y.Z on <device>`: copy the
+checklist below and tick what passed. Anything that fails gets its own issue.
+
+## Matrix
+
+| | Covered by |
+| --- | --- |
+| **Devices** | Google TV Streamer, Chromecast with Google TV (HD), a TV with Google TV built in, Fire TV on Fire OS (or beta testers), Android TV emulator (auto) |
+| **Home Assistant** | Oldest supported (2025.1), current release, current beta (auto: any version) |
+| **Install paths** | Downloader with `pleatview.hustlesman.com/apk`, adb, Google Play (from M2) |
+
+## Checklist
+
+### Install and update
+- [ ] Downloader: entering `pleatview.hustlesman.com/apk` installs the app, and its banner appears in the TV's app row
+- [ ] Installing a newer APK over the old one keeps the pairing and settings **(auto)**
+- [ ] The "Open in HACS" button opens PleatView in HACS; installing it and restarting works
+
+### Discovery and pairing
+- [ ] Home Assistant discovers the TV within a minute of opening PleatView
+- [ ] A wrong PIN is rejected; the right PIN finishes setup with no further questions **(auto)**
+- [ ] The "Set up manually" button with the TV's address also works **(auto: manual address)**
+
+### Dashboards
+- [ ] The default dashboard appears signed in, without a login page, within 15 seconds **(auto)**
+- [ ] Kiosk modes: full hides the sidebar and header, sidebar-only hides just the sidebar, off shows both (auto: full)
+- [ ] Zoom 75 % fits more cards; 100 % looks like a browser
+- [ ] Switching dashboards: source selection, `show_dashboard` with and without `duration`, channel up/down **(auto: show_dashboard)**
+- [ ] Rotation cycles dashboards while nobody uses the remote, and pauses while someone does
+- [ ] Back closes Home Assistant dialogs, then goes to the home dashboard, then opens the menu
+- [ ] The menu shows address, PIN and version, and its dashboard buttons work
+
+### Casting and media
+- [ ] MP4 video plays full screen; Home Assistant shows title, position and duration; pause, seek and stop work **(auto: play and stop)**
+- [ ] A camera with a live stream plays in a corner (`show_camera`), at the requested position and size, and closes after `duration`
+- [ ] A camera without streaming shows as moving images **(auto)**
+- [ ] An RTSP URL plays
+- [ ] Music or internet radio plays in the background with the now-playing card
+- [ ] A text-to-speech announcement plays over a video, which quietens and then recovers
+- [ ] An image from the media browser shows full screen; the browser's *Dashboards* folder switches dashboards
+- [ ] A web page opens full screen and as picture-in-picture (`show_url`)
+
+### Notifications
+- [ ] `notify.send_message` shows a card that hides itself **(auto)**
+- [ ] `pleatview.notify` with a camera snapshot shows the picture
+- [ ] With the overlay permission, a notification appears over another app, such as YouTube
+
+### Power and background
+- [ ] `turn_off` blanks the screen and the entity turns `off`; `turn_on` brings the dashboard back **(auto)**
+- [ ] After pressing Home, the entity turns `off`; with the overlay permission, `show_dashboard` brings PleatView back to the front
+- [ ] After a reboot, PleatView opens by itself (overlay permission and "Open when the TV starts" on)
+- [ ] The TV's screensaver does not start while a dashboard is showing
+
+### Recovery
+- [ ] Restarting Home Assistant: the dashboard and the entity recover within a minute **(auto)**
+- [ ] Pulling the network or rebooting the router: a status banner, then recovery without touching the TV
+- [ ] Clearing PleatView's data: Home Assistant asks for the new PIN, and the settings come back
+- [ ] A WebView crash recovers by itself (debug builds; DevTools `Page.crash`)
+
+### Sign-in and removal
+- [ ] Reconfigure: read-only user (buttons on the TV can't change devices), own token, sign in on the TV
+- [ ] Removing the integration returns the TV to its setup screen and deletes the user Home Assistant created
+
+## Soak test (M1)
+
+Run for 7 days on the Google TV Streamer and the Chromecast with Google TV (HD), at the same
+time:
+
+1. Show a dashboard with a live camera card, and turn on rotation every 60 seconds.
+2. Once a day, record memory with
+   `adb shell dumpsys meminfo com.hustlesman.pleatview | grep "TOTAL PSS"`
+   and note any blank screen, freeze or crash.
+3. Day 3: reboot the router. Day 5: restart Home Assistant.
+
+**Pass:** no manual intervention for 7 days, recovery from both events, and memory that grows
+by less than 20 % after the first day.

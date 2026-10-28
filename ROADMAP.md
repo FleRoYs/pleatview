@@ -96,7 +96,7 @@ from GitHub Releases.
 
 *Mon 9 → Fri 20 Nov 2026.* Prove it works on the devices people own, for days at a time.
 
-- [ ] `docs/test-plan.md`: the checklist run per device and per release. It covers
+- [x] `docs/test-plan.md`: the checklist run per device and per release. It covers
       discovery, pairing, automatic sign-in, kiosk, zoom, switching and rotating
       dashboards, video (MP4, HLS, RTSP), cameras (HLS, WebRTC cards, Frigate),
       text-to-speech announcements, notifications in and over other apps, standby and
@@ -110,9 +110,9 @@ from GitHub Releases.
 - [ ] 7-day soak on the Streamer and the Chromecast HD, with a dashboard showing a live
       camera and rotation on. No crash or blank screen, stable memory (checked daily),
       and automatic recovery from a router reboot and a Home Assistant restart.
-- [ ] Decide the foreground-service type Google Play will accept (`connectedDevice` or
-      `specialUse`)
-- [ ] Ask for "Display over other apps" from the PleatView menu on TVs that have that
+- [x] Decide the foreground-service type Google Play will accept: `connectedDevice`
+      (Home Assistant controls the TV over the network), with Wi-Fi kept optional
+- [x] Ask for "Display over other apps" from the PleatView menu on TVs that have that
       settings screen, with adb only as the fallback
 - [ ] Test plan covers installing with Downloader and the "My Home Assistant" buttons
 

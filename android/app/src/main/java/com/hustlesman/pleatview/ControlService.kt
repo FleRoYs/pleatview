@@ -94,7 +94,7 @@ class ControlService : Service() {
             .setOngoing(true)
             .setPriority(NotificationCompat.PRIORITY_MIN)
             .build()
-        val type = if (Build.VERSION.SDK_INT >= 34) ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE else 0
+        val type = if (Build.VERSION.SDK_INT >= 29) ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE else 0
         ServiceCompat.startForeground(this, NOTIFICATION_ID, notification, type)
     }
 

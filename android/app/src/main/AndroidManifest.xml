@@ -5,7 +5,9 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
+    <!-- mDNS announcements; also what Android 14+ requires for a connectedDevice service. -->
+    <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <!-- Optional: lets Home Assistant bring PleatView to the front and show
          notifications over other apps. Granted manually (see README). -->
@@ -16,6 +18,10 @@
         android:required="false" />
     <uses-feature
         android:name="android.hardware.touchscreen"
+        android:required="false" />
+    <!-- The multicast permission implies Wi-Fi; keep Ethernet-only TVs eligible on Google Play. -->
+    <uses-feature
+        android:name="android.hardware.wifi"
         android:required="false" />
 
     <application
@@ -49,14 +55,11 @@
             </intent-filter>
         </activity>
 
+        <!-- connectedDevice: Home Assistant controls the TV over the local network. -->
         <service
             android:name=".ControlService"
             android:exported="false"
-            android:foregroundServiceType="specialUse">
-            <property
-                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
-                android:value="Local network endpoint that lets Home Assistant send dashboards, media and notifications to this TV." />
-        </service>
+            android:foregroundServiceType="connectedDevice" />
 
         <receiver
             android:name=".BootReceiver"
