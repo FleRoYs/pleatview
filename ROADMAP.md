@@ -62,7 +62,7 @@ These take days to weeks to come back, so they start now, alongside M0.
 
 | Task | Why now | Needed by |
 | --- | --- | --- |
-| Choose a **Google Play account type**. *Personal*: $25 and ID verification, but production needs a closed test with ≥12 testers for 14 days. *Organization*: needs a D-U-N-S number (free, up to ~30 days), with no tester rule. | Gates M2 and M3 | M2 |
+| Create a **Google Play developer account** on a new, dedicated Google account. *Personal*: $25 and ID verification, but production needs a closed test with ≥12 testers for 14 days. *Organization*: needs a registered business and a D-U-N-S number (free, up to ~30 days), with no tester rule. | The closed test can't start until it's verified | M1 |
 | Create a **release signing key**, back it up offline in two places, add it to GitHub secrets | Every future update must be signed with the same key | M0 |
 | Register with **Android developer verification** (package `com.hustlesman.pleatview` and the signing key). Check whether it covers TV devices. | Google is rolling out verification for sideloaded apps from September 2026, globally in 2027 | M2 |
 | **Amazon developer** account (free) | Needed to submit to the Fire TV Appstore | M3 |
@@ -126,9 +126,9 @@ requires.
 - [ ] v0.2 announced on the Home Assistant Community forum and r/homeassistant
 - [ ] GitHub issue templates: bug report (device, OS, Home Assistant version, logs) and
       device report
-- [ ] Google Play closed-testing track with ≥12 opted-in testers; the 14 days start
-      on day one of M2. Not needed if we publish from a developer account created
-      before 13 November 2023, which would let M3 start right after M1.
+- [ ] Google Play closed-testing track with ≥12 opted-in testers (personal account
+      only). The 14 days start the day the account is verified, running alongside M1,
+      so they don't add to the timeline.
 - [ ] P1 bugs fixed within 48 hours; a beta build every week
 - [ ] Device compatibility table on the website, filled from tester reports
 - [ ] One-press pairing: approve Home Assistant on the TV with OK, instead of typing the PIN
