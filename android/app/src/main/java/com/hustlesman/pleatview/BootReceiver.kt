@@ -14,9 +14,8 @@ class BootReceiver : BroadcastReceiver() {
 
         val app = PleatApp.from(context)
         val config = app.settings.config
-        // Android only lets apps start activities from the background when they may draw overlays.
         if (action == Intent.ACTION_BOOT_COMPLETED && config.launchOnBoot && config.isConfigured &&
-            app.hub.canDrawOverlays()
+            app.hub.canOpenFromBackground()
         ) {
             try {
                 context.startActivity(Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))

@@ -298,6 +298,7 @@ class DashboardController(
         val view = webView ?: return
         main.removeCallbacks(retryRunnable)
         currentUrl = url
+        reportedPath = null
         failed = false
         ready = false
         lastHeartbeat = 0
@@ -347,6 +348,8 @@ class DashboardController(
     }
 
     private fun onHeartbeat(message: JSONObject) {
+        // A last heartbeat from a Home Assistant page we've already left must not report its path.
+        if (!config.isHaUrl(currentUrl)) return
         val now = SystemClock.elapsedRealtime()
         lastHeartbeat = now
         if (message.optBoolean("ready")) ready = true

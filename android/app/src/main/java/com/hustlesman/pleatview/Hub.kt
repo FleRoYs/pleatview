@@ -130,6 +130,9 @@ class Hub(
 
     fun canDrawOverlays(): Boolean = systemOverlay.isAllowed()
 
+    /** Android 10 and later only let an app open from the background if it may draw overlays. */
+    fun canOpenFromBackground(): Boolean = Build.VERSION.SDK_INT < Build.VERSION_CODES.Q || canDrawOverlays()
+
     private fun render(): String =
         state.toJson().put("app_version", BuildConfig.VERSION_NAME).toString()
 

@@ -562,12 +562,14 @@ def checks(r: Run, report: Report, apk: Path) -> None:
             wait_for("the new dashboard among the TV's sources",
                      lambda: "E2E web page" in (state()["attributes"].get("source_list") or []), timeout=20)
             ha.call("pleatview", "show_dashboard", {"entity_id": entity["id"], "path": "/dashboard-pleatview-e2e"})
-            shown = wait_for("the web page on the TV",
-                             lambda: (s := state())["attributes"].get("url") == r.page_url and s, timeout=30)
+            wait_for("the web page on the TV", lambda: state()["attributes"].get("url") == r.page_url, timeout=30)
             time.sleep(2)
             report.screenshot("07-webpage")
-            if shown["attributes"].get("source") != "E2E web page":
-                raise AssertionError(f"the TV shows the page, but its source is {shown['attributes'].get('source')!r}")
+            # A late heartbeat from the Home Assistant page must not take the source back.
+            time.sleep(6)
+            source = state()["attributes"].get("source")
+            if source != "E2E web page":
+                raise AssertionError(f"the TV shows the page, but its source is {source!r}")
         finally:
             ws_call(r, {"type": "lovelace/dashboards/delete", "dashboard_id": created["result"]["id"]})
             ha.call("pleatview", "home", {"entity_id": entity["id"]})
