@@ -643,7 +643,7 @@ def main() -> int:
         start(r, work, apk)
         version = http("GET", f"{r.tv_api}/api/info")[1].get("app_version")
         ha_version = r.ha.api("GET", "/api/config")[1].get("version")
-        where = r.ha.url if r.external else f"{args.ha_version}, throwaway"
+        where = r.ha.url if r.external else "throwaway" if args.ha_version == ha_version else f"{args.ha_version}, throwaway"
         report.title = f"PleatView {version} on {describe_tv()} against Home Assistant {ha_version} ({where})"
         print(f"Running checks: {report.title}", flush=True)
         checks(r, report, apk)
