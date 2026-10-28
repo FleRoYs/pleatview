@@ -11,6 +11,13 @@
 Dates assume about 20 hours of development a week, and include store review times. We
 re-check them at the first weekly review.
 
+**Principle: as little interaction as possible.** Every step a person has to take is a
+step to remove. Setup should be: type a short link into the TV's Downloader app (later,
+one click in the store), press one button to add the integration, confirm the discovered
+TV and enter its PIN. Nobody should need adb, a computer, or to type a password with
+the remote. The same goes for running the project: checks, the website and releases run
+on their own.
+
 ## Status
 
 Last updated 28 October 2026. **Current milestone: M0.**
@@ -73,10 +80,14 @@ These take days to weeks to come back, so they start now, alongside M0.
 - [x] CI workflow: app tests, lint and build; integration tests; hassfest; HACS validation
 - [x] Website and privacy policy in `site/`, deployed by GitHub Pages
 - [x] Release workflow: a version tag builds the signed APK and app bundle and publishes a GitHub release
-- [ ] Repository description and topics set (the HACS check needs them)
+- [x] Repository description and topics set (the HACS check needs them)
+- [x] Install without a computer: Downloader plus `pleatview.hustlesman.com/apk`, which always serves the newest release
+- [x] "My Home Assistant" buttons that open PleatView in HACS and start its setup
+- [x] Setup ends at the PIN: a dedicated user by default, other sign-in methods under Reconfigure
+- [x] Release key in GitHub secrets; `tools/bump-version.sh` keeps app and integration versions in step
 - [ ] `pleatview.hustlesman.com` live over HTTPS
-- [ ] Release key in GitHub secrets; v0.1.1 tagged
-- [ ] Long-lead tasks above started
+- [ ] v0.1.1 tagged and published
+- [ ] Long-lead tasks above started (tracked as issues)
 
 **Exit:** CI green on `main`, the site is live, and a signed v0.1.1 APK can be downloaded
 from GitHub Releases.
@@ -101,6 +112,9 @@ from GitHub Releases.
       and automatic recovery from a router reboot and a Home Assistant restart.
 - [ ] Decide the foreground-service type Google Play will accept (`connectedDevice` or
       `specialUse`)
+- [ ] Ask for "Display over other apps" from the PleatView menu on TVs that have that
+      settings screen, with adb only as the fallback
+- [ ] Test plan covers installing with Downloader and the "My Home Assistant" buttons
 
 **Exit:** the test plan passes on all four devices, the soak passes, v0.2.0 is released.
 
@@ -116,6 +130,7 @@ requires.
       on day one of M2
 - [ ] P1 bugs fixed within 48 hours; a beta build every week
 - [ ] Device compatibility table on the website, filled from tester reports
+- [ ] One-press pairing: approve Home Assistant on the TV with OK, instead of typing the PIN
 
 **Exit:** ≥12 testers active for 14 days, no open P1 bugs, the five most-reported issues
 fixed, v0.3.0 released.
@@ -230,6 +245,7 @@ submitted.
 Ideas we'll consider after 1.0, or between milestones if there's slack:
 
 - Picture-in-picture video over other apps (Android overlay window)
+- Update prompts for GitHub installs (store installs update by themselves)
 - Move the Android app to protocol v2, so there's a single protocol
 - Phone and tablet listing on Google Play (wall panels)
 - TV remote buttons as Home Assistant events for automations

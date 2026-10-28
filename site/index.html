@@ -24,6 +24,7 @@
   .button { display: inline-block; padding: 12px 22px; border-radius: 10px; font-weight: 600; text-decoration: none; }
   .primary { background: var(--accent); color: #062430; }
   .secondary { border: 1px solid var(--line); color: var(--text); }
+  .small { padding: 7px 14px; font-size: 14px; margin-top: 8px; }
   figure { margin: 36px 0 0; }
   figure img { width: 100%; height: auto; border-radius: 14px; border: 1px solid var(--line); display: block; }
   figcaption { color: var(--muted); font-size: 14px; margin-top: 10px; }
@@ -96,15 +97,17 @@
     <h2>Get started</h2>
     <div class="steps">
       <ol>
-        <li><strong>Install the TV app.</strong><span>Download the APK from <a href="https://github.com/FleRoYs/pleatview/releases">GitHub Releases</a> and install it with adb. Store versions are on the <a href="https://github.com/FleRoYs/pleatview/blob/main/ROADMAP.md">roadmap</a>.</span></li>
-        <li><strong>Add the integration.</strong><span>In HACS, add <code>https://github.com/FleRoYs/pleatview</code> as a custom repository and install PleatView, then restart Home Assistant.</span></li>
-        <li><strong>Pair with the PIN on screen.</strong><span>Home Assistant discovers the TV. Enter the PIN it shows, and pick a dedicated user for the TV.</span></li>
+        <li><strong>Install the TV app.</strong><span>On the TV, install the free <em>Downloader</em> app from the store, open it and enter <code>pleatview.hustlesman.com/apk</code>. Android asks once to allow the install. No computer needed.</span></li>
+        <li><strong>Add the integration.</strong><span>Open PleatView in HACS on your Home Assistant with the button below, install it, and restart Home Assistant.</span>
+          <a class="button secondary small" href="https://my.home-assistant.io/redirect/hacs_repository/?owner=FleRoYs&repository=pleatview&category=integration">Open in HACS</a></li>
+        <li><strong>Pair.</strong><span>Home Assistant discovers the TV. Select <em>Add</em> and enter the PIN shown on the TV; your dashboard appears a few seconds later.</span>
+          <a class="button secondary small" href="https://my.home-assistant.io/redirect/config_flow_start/?domain=pleatview">Set up manually</a></li>
       </ol>
       <figure style="margin:0">
         <img src="img/setup.webp" width="1280" height="720" alt="The PleatView setup screen showing the TV's address and a six-digit pairing PIN" loading="lazy">
       </figure>
     </div>
-    <p>Step-by-step instructions, automation examples and settings are in the <a href="https://github.com/FleRoYs/pleatview#readme">README</a>.</p>
+    <p>Prefer adb, or want other sign-in options? See the <a href="https://github.com/FleRoYs/pleatview#install">install guide</a>. Store versions are on the <a href="https://github.com/FleRoYs/pleatview/blob/main/ROADMAP.md">roadmap</a>.</p>
   </section>
 
   <section>

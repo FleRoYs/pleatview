@@ -13,15 +13,17 @@ from custom_components.pleatview.const import (
     CONF_AUTH_MODE,
     CONF_HA_TOKEN,
     CONF_TOKEN,
+    CONF_USER_ID,
     DOMAIN,
 )
-from homeassistant.config_entries import SOURCE_USER, SOURCE_ZEROCONF
+from homeassistant.auth.const import GROUP_ID_READ_ONLY
+from homeassistant.config_entries import SOURCE_RECONFIGURE, SOURCE_USER, SOURCE_ZEROCONF
 from homeassistant.const import CONF_HOST, CONF_PORT
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
 from homeassistant.helpers.service_info.zeroconf import ZeroconfServiceInfo
 
-from .conftest import make_entry
+from .conftest import make_entry, setup_entry
 from .fake_tv import FakeTV
 
 SETUP = "custom_components.pleatview.async_setup_entry"
@@ -40,29 +42,27 @@ def discovery(tv: FakeTV, **properties: str) -> ZeroconfServiceInfo:
 
 
 async def _pair(hass: HomeAssistant, flow_id: str, tv: FakeTV) -> dict:
+    """Enter a wrong PIN, then the right one; returns the result of the right one."""
     result = await hass.config_entries.flow.async_configure(flow_id, {"pin": "000000"})
     assert result["type"] is FlowResultType.FORM
     assert result["errors"] == {"base": "invalid_pin"}
-    result = await hass.config_entries.flow.async_configure(flow_id, {"pin": tv.pin})
-    assert result["type"] is FlowResultType.MENU
-    assert result["step_id"] == "dashboard_auth"
-    return result
+    return await hass.config_entries.flow.async_configure(flow_id, {"pin": tv.pin})
 
 
-async def test_user_flow(hass: HomeAssistant, fake_tv: FakeTV) -> None:
+async def test_user_flow_defaults_to_managed_user(hass: HomeAssistant, fake_tv: FakeTV) -> None:
     result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": SOURCE_USER})
     assert result["step_id"] == "user"
     result = await hass.config_entries.flow.async_configure(
         result["flow_id"], {CONF_HOST: "127.0.0.1", CONF_PORT: fake_tv.port}
     )
     assert result["step_id"] == "pair"
-    await _pair(hass, result["flow_id"], fake_tv)
     with patch(SETUP, return_value=True):
-        result = await hass.config_entries.flow.async_configure(result["flow_id"], {"next_step_id": "auth_none"})
+        result = await _pair(hass, result["flow_id"], fake_tv)
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert result["title"] == "Living Room TV"
     assert result["result"].unique_id == "tv-1"
-    assert result["data"][CONF_AUTH_MODE] == AUTH_NONE
+    assert result["data"][CONF_AUTH_MODE] == AUTH_MANAGED
+    assert result["data"][CONF_ALLOW_CONTROL] is True
     assert result["data"][CONF_TOKEN] in fake_tv.tokens
 
 
@@ -75,7 +75,7 @@ async def test_user_flow_cannot_connect(hass: HomeAssistant, socket_enabled) -> 
     assert result["errors"] == {"base": "cannot_connect"}
 
 
-async def test_zeroconf_flow_managed_user(hass: HomeAssistant, fake_tv: FakeTV) -> None:
+async def test_zeroconf_flow(hass: HomeAssistant, fake_tv: FakeTV) -> None:
     result = await hass.config_entries.flow.async_init(
         DOMAIN, context={"source": SOURCE_ZEROCONF}, data=discovery(fake_tv)
     )
@@ -83,13 +83,11 @@ async def test_zeroconf_flow_managed_user(hass: HomeAssistant, fake_tv: FakeTV) 
     assert result["description_placeholders"]["name"] == "Living Room TV"
     result = await hass.config_entries.flow.async_configure(result["flow_id"], {})
     assert result["step_id"] == "pair"
-    await _pair(hass, result["flow_id"], fake_tv)
-    result = await hass.config_entries.flow.async_configure(result["flow_id"], {"next_step_id": "auth_managed"})
     with patch(SETUP, return_value=True):
-        result = await hass.config_entries.flow.async_configure(result["flow_id"], {CONF_ALLOW_CONTROL: False})
+        result = await _pair(hass, result["flow_id"], fake_tv)
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert result["data"][CONF_AUTH_MODE] == AUTH_MANAGED
-    assert result["data"][CONF_ALLOW_CONTROL] is False
+    assert result["data"][CONF_ALLOW_CONTROL] is True
 
 
 async def test_zeroconf_updates_moved_tv(hass: HomeAssistant, fake_tv: FakeTV) -> None:
@@ -113,20 +111,42 @@ async def test_zeroconf_without_id(hass: HomeAssistant, fake_tv: FakeTV) -> None
     assert result["reason"] == "invalid_discovery_info"
 
 
-async def test_token_mode_validates_token(hass: HomeAssistant, fake_tv: FakeTV, hass_access_token: str) -> None:
-    result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": SOURCE_USER})
-    result = await hass.config_entries.flow.async_configure(
-        result["flow_id"], {CONF_HOST: "127.0.0.1", CONF_PORT: fake_tv.port}
-    )
-    await _pair(hass, result["flow_id"], fake_tv)
-    result = await hass.config_entries.flow.async_configure(result["flow_id"], {"next_step_id": "auth_token"})
-    result = await hass.config_entries.flow.async_configure(result["flow_id"], {CONF_HA_TOKEN: "nonsense"})
+async def test_reconfigure_sign_in(
+    hass: HomeAssistant, fake_tv: FakeTV, hass_owner_user, hass_access_token: str
+) -> None:
+    entry = await setup_entry(hass, make_entry(fake_tv, **{CONF_AUTH_MODE: AUTH_MANAGED, CONF_ALLOW_CONTROL: True}))
+    first_user = entry.data[CONF_USER_ID]
+
+    async def reconfigure(user_input: dict) -> dict:
+        result = await hass.config_entries.flow.async_init(
+            DOMAIN, context={"source": SOURCE_RECONFIGURE, "entry_id": entry.entry_id}
+        )
+        assert result["step_id"] == "reconfigure"
+        result = await hass.config_entries.flow.async_configure(result["flow_id"], user_input)
+        await hass.async_block_till_done()
+        return result
+
+    # Your own token: validated, the dedicated user is removed, the token goes to the TV.
+    result = await reconfigure({CONF_AUTH_MODE: AUTH_TOKEN, CONF_HA_TOKEN: "nonsense"})
     assert result["errors"] == {CONF_HA_TOKEN: "invalid_ha_token"}
-    with patch(SETUP, return_value=True):
-        result = await hass.config_entries.flow.async_configure(result["flow_id"], {CONF_HA_TOKEN: hass_access_token})
-    assert result["type"] is FlowResultType.CREATE_ENTRY
-    assert result["data"][CONF_AUTH_MODE] == AUTH_TOKEN
-    assert result["data"][CONF_HA_TOKEN] == hass_access_token
+    result = await reconfigure({CONF_AUTH_MODE: AUTH_TOKEN, CONF_HA_TOKEN: hass_access_token})
+    assert result["reason"] == "reconfigure_successful"
+    assert await hass.auth.async_get_user(first_user) is None
+    assert CONF_USER_ID not in entry.data
+    assert fake_tv.config["ha_token"] == hass_access_token
+
+    # Read-only dedicated user.
+    await reconfigure({CONF_AUTH_MODE: AUTH_MANAGED, CONF_ALLOW_CONTROL: False})
+    user = await hass.auth.async_get_user(entry.data[CONF_USER_ID])
+    assert [group.id for group in user.groups] == [GROUP_ID_READ_ONLY]
+    assert fake_tv.config["ha_token"] == entry.data[CONF_HA_TOKEN] != hass_access_token
+
+    # Sign in on the TV: user removed and the TV forgets the token.
+    await reconfigure({CONF_AUTH_MODE: AUTH_NONE})
+    assert await hass.auth.async_get_user(user.id) is None
+    assert CONF_HA_TOKEN not in entry.data
+    assert fake_tv.config["ha_token"] == ""
+    await hass.config_entries.async_unload(entry.entry_id)
 
 
 async def test_options_flow(hass: HomeAssistant, fake_tv: FakeTV) -> None:

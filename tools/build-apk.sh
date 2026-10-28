@@ -4,6 +4,9 @@
 #   tools/build-apk.sh                 # debug APK + unit tests
 #   tools/build-apk.sh assembleRelease # any Gradle tasks
 #
+# Release signing: set PLEATVIEW_KEYSTORE (path to the keystore, anywhere on disk),
+# PLEATVIEW_KEYSTORE_PASSWORD, PLEATVIEW_KEY_ALIAS and PLEATVIEW_KEY_PASSWORD.
+#
 # Output: android/app/build/outputs/apk/<variant>/
 set -euo pipefail
 
@@ -17,10 +20,18 @@ docker build -q -t "$image" "$root/tools/android-build" > /dev/null
 # installed APK (a different key forces an uninstall, which wipes pairing and settings).
 mkdir -p "$HOME/.gradle" "$HOME/.android"
 
+# The keystore lives outside the repository; mount its folder read-only.
+keystore=()
+if [ -n "${PLEATVIEW_KEYSTORE:-}" ]; then
+  dir="$(cd "$(dirname "$PLEATVIEW_KEYSTORE")" && pwd)"
+  keystore=(-v "$dir:/keystore:ro" -e "PLEATVIEW_KEYSTORE=/keystore/$(basename "$PLEATVIEW_KEYSTORE")")
+fi
+
 exec docker run --rm \
   --user "$(id -u):$(id -g)" \
   -e HOME=/tmp/home -e GRADLE_USER_HOME=/gradle -e ANDROID_USER_HOME=/tmp/home/.android \
-  -e PLEATVIEW_KEYSTORE -e PLEATVIEW_KEYSTORE_PASSWORD -e PLEATVIEW_KEY_ALIAS -e PLEATVIEW_KEY_PASSWORD \
+  -e PLEATVIEW_KEYSTORE_PASSWORD -e PLEATVIEW_KEY_ALIAS -e PLEATVIEW_KEY_PASSWORD \
+  "${keystore[@]}" \
   -v "$HOME/.gradle:/gradle" \
   -v "$HOME/.android:/tmp/home/.android" \
   -v "$root/android:/work" \
