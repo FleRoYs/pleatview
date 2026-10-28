@@ -127,7 +127,8 @@ requires.
 - [ ] GitHub issue templates: bug report (device, OS, Home Assistant version, logs) and
       device report
 - [ ] Google Play closed-testing track with ≥12 opted-in testers; the 14 days start
-      on day one of M2
+      on day one of M2. Not needed if we publish from a developer account created
+      before 13 November 2023, which would let M3 start right after M1.
 - [ ] P1 bugs fixed within 48 hours; a beta build every week
 - [ ] Device compatibility table on the website, filled from tester reports
 - [ ] One-press pairing: approve Home Assistant on the TV with OK, instead of typing the PIN
@@ -148,6 +149,8 @@ store on Google TV and Fire TV.
       collected")
 - [ ] Foreground-service declaration with its demo video
 - [ ] App bundle from the release workflow, with Play App Signing
+- [ ] Releases upload to Google Play automatically through a service account, so the
+      owner account is only needed for store forms
 - [ ] Android TV opted in; app checked against Google's TV app quality guidelines
 - [ ] Production access requested once the closed test has finished
 - [ ] Amazon Appstore listing for Fire TV (Fire OS devices only) submitted
