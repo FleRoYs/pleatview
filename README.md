@@ -290,6 +290,12 @@ back to the local debug key.
 - Self-signed HTTPS certificates are rejected. Use the internal `http://` URL or a
   trusted certificate.
 
+## Support
+
+PleatView is free and open source, and every feature stays free for everyone. If it's
+useful to you, you can [chip in](https://donate.stripe.com/cNifZg4Wudug46O4X38Ra00) towards test devices and app-store fees. Bug
+reports and ideas help just as much.
+
 ## License
 
 [MIT](LICENSE). PleatView is not affiliated with Home Assistant, Nabu Casa, Google,

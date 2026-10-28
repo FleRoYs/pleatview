@@ -135,7 +135,7 @@ requires.
 - [ ] Google Play closed test with ≥12 testers, who join through a Google Group so there
       are no email lists to maintain. The 14 days start when the first closed-test build
       passes review.
-- [ ] Optional donation link (Stripe Payment Link) on the website and GitHub. It stays
+- [x] Optional donation link (Stripe Payment Link) on the website and GitHub. It stays
       out of the app and store listings, which Google Play's payment rules restrict.
 - [ ] P1 bugs fixed within 48 hours; a beta build every week
 - [ ] Device compatibility table on the website, filled from tester reports
