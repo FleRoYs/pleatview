@@ -397,7 +397,8 @@ class MainActivity : Activity(), Hub.Display, DashboardController.Callbacks, Med
         menuItems.addView(menuText(info, 15f))
         if (config.isConfigured) menuItems.addView(menuText(config.haUrl, 13f))
         if (!app.hub.canDrawOverlays()) {
-            menuItems.addView(menuText(getString(R.string.menu_overlay_missing), 13f))
+            val missing = if (app.hub.canOpenFromBackground()) R.string.menu_overlay_missing_notifications else R.string.menu_overlay_missing
+            menuItems.addView(menuText(getString(missing), 13f))
             addMenuButton(getString(R.string.menu_allow_overlay)) { requestOverlayPermission() }
         }
 

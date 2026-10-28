@@ -108,7 +108,8 @@ from GitHub Releases.
 - [ ] Test plan passed on: Google TV Streamer, Chromecast with Google TV (HD, the
       low-memory worst case), a TV with Google TV built in, Fire TV (Fire OS 7 or 8).
       Fire TV Stick (3rd Gen, Fire OS 7.7, 1 GB): every automated check passes
-      (`tools/e2e/run.py --device`, 29 Oct); the manual checks are still to do
+      (`tools/e2e/run.py --device`, 29 Oct), and it opens by itself after a reboot; the
+      other manual checks are still to do
 - [ ] Home Assistant versions: oldest supported (2025.1), current stable, beta. The
       end-to-end test passed on 2025.1.4, 2026.10.4 and the 2026.11 nightly build on 28 Oct.
       Still to run: the 2026.11 beta (due 28 Oct), and the stable release again before v0.2.0

@@ -57,7 +57,7 @@ checklist below and tick what passed. Anything that fails gets its own issue.
 ### Power and background
 - [ ] `turn_off` blanks the screen and the entity turns `off`; `turn_on` brings the dashboard back **(auto)**
 - [ ] After pressing Home, the entity turns `off`; with the overlay permission, `show_dashboard` brings PleatView back to the front
-- [ ] After a reboot, PleatView opens by itself (overlay permission and "Open when the TV starts" on)
+- [ ] After a reboot, PleatView opens by itself with "Open when the TV starts" on (Android 10 and later also need the overlay permission)
 - [ ] The TV's screensaver does not start while a dashboard is showing
 
 ### Recovery

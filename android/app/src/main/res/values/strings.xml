@@ -13,6 +13,7 @@
     <string name="menu_exit">Exit</string>
     <string name="menu_info">%1$s · %2$s · PIN %3$s · v%4$s</string>
     <string name="menu_overlay_missing">Home Assistant can\'t bring PleatView to the front or show notifications over other apps until you allow it to display over other apps.</string>
+    <string name="menu_overlay_missing_notifications">Notifications from Home Assistant only show over other apps once you allow PleatView to display over other apps.</string>
     <string name="menu_allow_overlay">Allow display over other apps</string>
     <string name="overlay_settings_missing">This TV has no setting for it. See pleatview.hustlesman.com/support for the one-line fix.</string>
     <string name="status_unreachable">Can\'t reach Home Assistant (%1$s). Retrying in %2$d s…</string>
