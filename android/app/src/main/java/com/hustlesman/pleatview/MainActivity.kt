@@ -1,6 +1,7 @@
 package com.hustlesman.pleatview
 
 import android.app.Activity
+import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.os.Build
 import android.os.Bundle
@@ -14,6 +15,7 @@ import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.window.OnBackInvokedDispatcher
+import androidx.core.net.toUri
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
@@ -382,7 +384,10 @@ class MainActivity : Activity(), Hub.Display, DashboardController.Callbacks, Med
         )
         menuItems.addView(menuText(info, 15f))
         if (config.isConfigured) menuItems.addView(menuText(config.haUrl, 13f))
-        if (!app.hub.canDrawOverlays()) menuItems.addView(menuText(getString(R.string.menu_overlay_missing), 13f))
+        if (!app.hub.canDrawOverlays()) {
+            menuItems.addView(menuText(getString(R.string.menu_overlay_missing), 13f))
+            addMenuButton(getString(R.string.menu_allow_overlay)) { requestOverlayPermission() }
+        }
 
         var first: Button? = null
         if (config.isConfigured) {
@@ -398,6 +403,18 @@ class MainActivity : Activity(), Hub.Display, DashboardController.Callbacks, Med
         val exit = addMenuButton(getString(R.string.menu_exit)) { finish() }
         menuOverlay.visibility = View.VISIBLE
         (first ?: exit).requestFocus()
+    }
+
+    /** Opens Android's "Display over other apps" screen; many Google TV builds don't have one. */
+    private fun requestOverlayPermission() {
+        val intent = Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION, "package:$packageName".toUri())
+        try {
+            startActivity(intent)
+        } catch (e: ActivityNotFoundException) {
+            toasts.show(
+                Command.Notify(null, getString(R.string.overlay_settings_missing), null, 15, Command.Position.TOP_RIGHT),
+            )
+        }
     }
 
     private fun closeMenu() {

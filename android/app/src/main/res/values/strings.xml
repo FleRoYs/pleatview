@@ -11,7 +11,9 @@
     <string name="menu_reload">Reload</string>
     <string name="menu_exit">Exit</string>
     <string name="menu_info">%1$s · %2$s · PIN %3$s · v%4$s</string>
-    <string name="menu_overlay_missing">Background launch and overlays are disabled. Grant "Display over other apps" to let Home Assistant bring PleatView to the front.</string>
+    <string name="menu_overlay_missing">Home Assistant can\'t bring PleatView to the front or show notifications over other apps until you allow it to display over other apps.</string>
+    <string name="menu_allow_overlay">Allow display over other apps</string>
+    <string name="overlay_settings_missing">This TV has no setting for it. See pleatview.hustlesman.com/support for the one-line fix.</string>
     <string name="status_unreachable">Can\'t reach Home Assistant (%1$s). Retrying in %2$d s…</string>
     <string name="status_auth_failed">Home Assistant rejected the access token. Re-provision it from Home Assistant or the setup page.</string>
     <string name="status_no_webview">Android System WebView is unavailable. Install or update it from the Play Store.</string>

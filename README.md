@@ -53,8 +53,9 @@ adb connect <tv-ip>:5555     # Google TV 12+: use "adb pair" from Wireless debug
 adb install -r pleatview.apk
 ```
 
-**Recommended:** allow PleatView to draw over other apps. Google TV has no settings
-screen for this, so grant it with adb:
+**Recommended:** allow PleatView to display over other apps. If your TV has the setting,
+use **Allow display over other apps** in PleatView's menu (press Back on the home
+dashboard). Most Google TV devices don't have it, so grant it with adb instead:
 
 ```bash
 adb shell appops set com.hustlesman.pleatview SYSTEM_ALERT_WINDOW allow
@@ -248,16 +249,26 @@ android/                    Kotlin app (no Compose, no AppCompat; WebView + Medi
 custom_components/pleatview Home Assistant integration (no extra requirements)
 docs/protocol.md            The HTTP/SSE API between the two
 tests/                      Integration tests with a fake TV that speaks the real protocol
-tools/                      Docker-based build and test scripts
+tools/                      Docker-based build, test and end-to-end scripts
 ```
 
 ```bash
 tools/build-apk.sh                    # app unit tests + debug APK
 tools/build-apk.sh lintDebug          # any Gradle tasks
 tools/test-integration.sh             # integration tests on the pinned Home Assistant
+tools/e2e/run.py                      # end to end: Android TV emulator + real Home Assistant
+tools/e2e/run.py --ha-version 2025.1.4   # ...against another Home Assistant version
+tools/e2e/run.py --ha-url http://192.168.1.20:8123 --ha-token-file token.txt
+                                      # ...against your own (admin token; the entry is removed afterwards)
 ```
 
-Both scripts only need Docker. In Android Studio, open `android/` (AGP 9.4, compileSdk 37,
+The end-to-end test needs KVM and pairs the app with a throwaway Home Assistant that
+listens only on 127.0.0.1. It saves screenshots, logs and a summary with the versions
+tested to `tools/e2e/out/`. The manual
+checks for real devices are in [docs/test-plan.md](docs/test-plan.md), and
+[docs/stores/google-play.md](docs/stores/google-play.md) has the values for the Play Console.
+
+The scripts only need Docker. In Android Studio, open `android/` (AGP 9.4, compileSdk 37,
 JDK 17+). The debug build enables WebView debugging, so `chrome://inspect` works.
 
 ### Releases
