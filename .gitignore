@@ -18,3 +18,4 @@ __pycache__/
 # End-to-end test artifacts
 tools/e2e/out/
 tools/soak/out/
+.backup/
