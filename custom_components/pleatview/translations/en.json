@@ -223,7 +223,7 @@
       "fields": {
         "site": {
           "name": "Site",
-          "description": "Only this site, as the TV's phone page lists it, such as https://grafana.example.com. Empty forgets all."
+          "description": "Only this site, as the TV's phone page lists it. Empty forgets all."
         }
       }
     }
