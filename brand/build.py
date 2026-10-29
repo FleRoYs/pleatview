@@ -3,6 +3,7 @@
 Run tools/build-brand.sh. It writes:
 
     brand/*.svg                                       the sources, with the wordmark as outlines
+    brand/pleatview-mark.png                          the mark as a transparent PNG
     android/app/src/main/res/drawable-*/              launcher icon foreground and TV banner
     site/favicon.svg, site/img/                       website icon and logo, Apple touch icon, Play Store images
     custom_components/pleatview/brand/                Home Assistant (and its Marketplace)
@@ -144,7 +145,10 @@ def main() -> None:
     icon = document(512, 512, f'<rect width="512" height="512" rx="112" fill="{INK}"/>{MARK}')
 
     # Sources. The logo is 200 units tall; its width follows from the wordmark.
-    write("brand/pleatview-mark.svg", document(MARK_W, MARK_H, MARK, f"{MARK_X} {MARK_Y} {MARK_W} {MARK_H}"))
+    mark = document(MARK_W, MARK_H, MARK, f"{MARK_X} {MARK_Y} {MARK_W} {MARK_H}")
+    write("brand/pleatview-mark.svg", mark)
+    # The mark alone on a transparent background, at 4x, for documents, slides and profiles.
+    render("brand/pleatview-mark.png", mark, MARK_W * 4, MARK_H * 4)
     write("brand/pleatview-icon.svg", icon)
     for name, pleat in (("on-dark", WHITE), ("on-light", INK)):
         body, width = lockup(0, 0, 200, pleat)

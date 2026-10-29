@@ -8,6 +8,7 @@ Chosen on 29 October 2026 from a blind comparison with icons from AI image gener
 | File | Use |
 | --- | --- |
 | `pleatview-mark.svg` | The mark alone, trimmed, on a transparent background |
+| `pleatview-mark.png` | The same as a 1568 × 1168 PNG with a transparent background |
 | `pleatview-icon.svg` | App icon: the mark on a rounded dark square (also the website's favicon) |
 | `pleatview-logo-on-dark.svg` | Mark and name for dark backgrounds |
 | `pleatview-logo-on-light.svg` | Mark and name for light backgrounds |
