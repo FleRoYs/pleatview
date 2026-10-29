@@ -133,10 +133,10 @@ as Grafana's public dashboards, those are the sturdiest choice for a wall displa
 | To… | Use |
 | --- | --- |
 | Switch dashboards | `media_player.select_source`, `pleatview.show_dashboard` (optional `duration` to return home), or the *Dashboards* folder in the media browser |
-| Cast media | Media panel → choose the TV, or `media_player.play_media` |
+| Cast media | Media panel → choose the TV, or `media_player.play_media`. Animated GIFs play as images; `extra: {loop: true}` repeats a video |
 | Show a camera | `pleatview.show_camera`: live HLS stream, MJPEG fallback, picture-in-picture by default |
 | Speak | `tts.speak` with the TV as `media_player_entity_id`: plays over whatever is on, ducking it |
-| Notify | `notify.send_message`, or `pleatview.notify` for image, camera snapshot, position and duration |
+| Notify | `notify.send_message`, or `pleatview.notify` for image, camera snapshot, position and duration (animated GIFs move on Android 10 and later) |
 | Open a web page | `pleatview.show_url` (full screen or picture-in-picture) |
 | Blank the screen | `media_player.turn_off` / `turn_on` (lets the TV's own sleep timer take over) |
 | Reset | `pleatview.home` (stop media, close overlays, go home), `pleatview.reload` |
@@ -300,9 +300,9 @@ JDK 17+). The debug build enables WebView debugging, so `chrome://inspect` works
 ### Releases
 
 ```bash
-tools/bump-version.sh 0.2.0   # app versionName/versionCode and integration version
+tools/bump-version.sh 1.1.0   # app versionName/versionCode and integration version
 # merge, then tag the merge commit:
-git tag v0.2.0 && git push origin v0.2.0
+git tag v1.1.0 && git push origin v1.1.0
 ```
 
 The tag runs `.github/workflows/release.yml`. It signs the APK and app bundle with the

@@ -1,6 +1,6 @@
 # PleatView roadmap
 
-**Goal: PleatView 1.0 by Friday 2 April 2027.** 1.0 means:
+**Goal: PleatView on every store by Friday 2 April 2027.** That means:
 
 - the TV app is installable from Google Play (Google TV / Android TV) and the Amazon
   Appstore (Fire TV), and LG and Samsung TVs have their own store apps,
@@ -30,13 +30,14 @@ Last updated 28 October 2026. **Current milestone: M1** (M0 finished early).
 | [M3](#m3--google-play-and-amazon-appstore) Google Play and Amazon Appstore | Fri 15 Jan 2027 | M2, store reviews | Not started |
 | [M4](#m4--web-player) Web player for any TV browser | Fri 29 Jan 2027 | M3 submitted | Not started |
 | [M5](#m5--lg-and-samsung-apps) LG and Samsung apps submitted | Fri 5 Mar 2027 | M4, seller accounts, TVs | Not started |
-| [M6](#m6--10) PleatView 1.0 | Fri 2 Apr 2027 | M5 approvals, 30-day soak | Not started |
+| [M6](#m6--on-every-store) On every store | Fri 2 Apr 2027 | M5 approvals, 30-day soak | Not started |
 
 Progress is tracked in [GitHub milestones](https://github.com/FleRoYs/pleatview/milestones).
 Issues exist only for the current milestone and the long-lead tasks; each later milestone
 gets its issues when it starts.
 
-Done so far: v0.1.1 is published as a signed release. One command (`tools/e2e/run.py`) tests
+Done so far: v1.0.0 is published as a signed release (versions are 1.x from 29 Oct; each
+milestone ends with the next minor release). One command (`tools/e2e/run.py`) tests
 the Android TV app and the Home Assistant integration together on an Android TV 16 emulator:
 pairing, automatic sign-in, kiosk mode, casting, cameras, notifications, standby, updates and
 recovery from a Home Assistant restart. It passes against Home Assistant 2025.1 and 2026.10.
@@ -112,7 +113,7 @@ from GitHub Releases.
       other manual checks are still to do
 - [ ] Home Assistant versions: oldest supported (2025.1), current stable, beta. The
       end-to-end test passed on 2025.1.4, 2026.10.4 and the 2026.11 nightly build on 28 Oct.
-      Still to run: the 2026.11 beta (due 28 Oct), and the stable release again before v0.2.0
+      Still to run: the 2026.11 beta (due 28 Oct), and the stable release again before v1.1.0
 - [ ] 7-day soak on the Streamer and the Chromecast HD, with a dashboard showing a live
       camera and rotation on. No crash or blank screen, stable memory (checked daily),
       and automatic recovery from a router reboot and a Home Assistant restart.
@@ -127,14 +128,14 @@ from GitHub Releases.
       the site directly, with the zoom, instead of in Home Assistant's frame; a
       discovered TV goes straight to the PIN; the setup screen has a QR code for phones
 
-**Exit:** the test plan passes on all four devices, the soak passes, v0.2.0 is released.
+**Exit:** the test plan passes on all four devices, the soak passes, v1.1.0 is released.
 
 ## M2 — Public beta
 
 *Mon 23 Nov → Fri 4 Dec 2026.* Real users, real feedback, and the testers Google Play
 requires.
 
-- [ ] v0.2 announced on the Home Assistant Community forum and r/homeassistant
+- [ ] The public beta announced on the Home Assistant Community forum and r/homeassistant
 - [ ] GitHub issue templates: bug report (device, OS, Home Assistant version, logs) and
       device report
 - [ ] **Demo for reviewers:** a "Try the demo" option on the setup screen, connected to
@@ -161,7 +162,7 @@ requires.
       Marketplace → PleatView, with HACS for older versions
 
 **Exit:** ≥12 testers active for 14 days, no open P1 bugs, the five most-reported issues
-fixed, v0.3.0 released.
+fixed, v1.2.0 released.
 
 ## M3 — Google Play and Amazon Appstore
 
@@ -203,7 +204,7 @@ Home Assistant instead of the other way round.
 - [ ] The Android app stays on protocol v1 (moving it is in the parking lot)
 
 **Exit:** the web player passes the test plan, minus native-only items, in a Chromium
-kiosk. v0.5.0 is released.
+kiosk. v1.4.0 is released.
 
 ## M5 — LG and Samsung apps
 
@@ -223,7 +224,7 @@ kiosk. v0.5.0 is released.
 **Exit:** both apps pass the vendors' pre-submission checklists on real TVs and are
 submitted.
 
-## M6 — 1.0
+## M6 — On every store
 
 *Mon 8 Mar → Fri 2 Apr 2027.* Everything listed, documented and supportable.
 
@@ -237,11 +238,11 @@ submitted.
       three monthly releases), OS versions supported, and a release within a week of
       each Home Assistant release when needed
 
-**Exit:** 1.0.0 is published on every channel and announced.
+**Exit:** the release is published on every channel and announced.
 
 ## Platforms
 
-| Platform | How | Store | In 1.0 |
+| Platform | How | Store | By M6 |
 | --- | --- | --- | --- |
 | Google TV / Android TV | Native app | Google Play | Yes (M3) |
 | Fire TV on Fire OS | Same native app | Amazon Appstore | Yes (M3) |
@@ -249,7 +250,7 @@ submitted.
 | LG webOS (2021+) | Web player in a webOS app | LG Content Store | Yes (M5) |
 | Samsung Tizen (2021+) | Web player in a Tizen app | Samsung TV Apps | Yes (M5) |
 | Browsers and kiosks | Web player served by Home Assistant | — | Yes (M4) |
-| Fire TV on Vega OS, Hisense VIDAA, Philips/Titan OS, Xbox, Google Cast | Web player wrappers | Various | After 1.0 |
+| Fire TV on Vega OS, Hisense VIDAA, Philips/Titan OS, Xbox, Google Cast | Web player wrappers | Various | After M6 |
 | Roku, Apple TV | No web engine for apps, so dashboards are impossible. Home Assistant's own integrations already cast media to them. | — | Not planned |
 
 ## Risks
@@ -266,7 +267,7 @@ submitted.
 
 ## Parking lot
 
-Ideas we'll consider after 1.0, or between milestones if there's slack:
+Ideas we'll consider after M6, or between milestones if there's slack:
 
 - Picture-in-picture video over other apps (Android overlay window)
 - Update prompts for GitHub installs (store installs update by themselves)

@@ -18,7 +18,7 @@
   "iot_class": "local_push",
   "issue_tracker": "https://github.com/FleRoYs/pleatview/issues",
   "requirements": [],
-  "version": "0.1.1",
+  "version": "1.0.0",
   "zeroconf": [
     "_pleatview._tcp.local."
   ]

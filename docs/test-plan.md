@@ -45,7 +45,8 @@ checklist below and tick what passed. Anything that fails gets its own issue.
 - [ ] An RTSP URL plays
 - [ ] Music or internet radio plays in the background with the now-playing card
 - [ ] A text-to-speech announcement plays over a video, which quietens and then recovers
-- [ ] An image from the media browser shows full screen; the browser's *Dashboards* folder switches dashboards
+- [ ] An image from the media browser shows full screen, an animated GIF moves; the browser's *Dashboards* folder switches dashboards
+- [ ] A video cast with `extra: {loop: true}` starts again at the end
 - [ ] A web page opens full screen and as picture-in-picture (`show_url`)
 - [ ] A Webpage dashboard opens the site itself, not Home Assistant's frame, and keeps its sign-in (try one that needs a cookie, such as OpenSearch's playground) **(auto)**
 - [ ] A dashboard behind a password prompt, and one behind a login form: the TV asks, the phone code signs in, and after a restart the saved sign-in is used without asking **(auto)**
@@ -53,7 +54,7 @@ checklist below and tick what passed. Anything that fails gets its own issue.
 
 ### Notifications
 - [ ] `notify.send_message` shows a card that hides itself **(auto)**
-- [ ] `pleatview.notify` with a camera snapshot shows the picture
+- [ ] `pleatview.notify` with a camera snapshot shows the picture; an animated GIF moves on Android 10 and later and shows its first frame on Android 9, without a crash **(auto: GIF)**
 - [ ] With the overlay permission, a notification appears over another app, such as YouTube
 
 ### Power and background

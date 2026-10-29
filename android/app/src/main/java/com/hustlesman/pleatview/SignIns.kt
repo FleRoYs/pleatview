@@ -115,6 +115,22 @@ class SignIns(private val store: Store, private val vault: Vault) {
     private fun unhex(text: String): ByteArray = ByteArray(text.length / 2) { text.substring(it * 2, it * 2 + 2).toInt(16).toByte() }
 
     companion object {
+        /**
+         * A site's own name from its page title, without "Sign in" and the like:
+         * "Login | Proxmox Virtual Environment" → "Proxmox Virtual Environment". Null if nothing's left.
+         */
+        fun siteName(pageTitle: String?): String? {
+            val title = pageTitle?.trim().orEmpty()
+            if (title.isEmpty() || "://" in title) return null // no <title>: the web view shows the address
+            return title.split(" | ", " - ", " – ", " — ", " · ", ": ")
+                .map { it.trim().replace(SIGN_IN_PREFIX, "").trim() }
+                .lastOrNull { it.isNotEmpty() && !GENERIC.matches(it) }
+                ?.take(40)
+        }
+
+        private val SIGN_IN_PREFIX = Regex("(?i)^(sign in|log in|login|welcome) to ")
+        private val GENERIC = Regex("(?i)(please )?(sign[ -]?in|log[ -]?in|log on|welcome|authentication|authenticate|account|home)")
+
         /** Script for a page: "form" when it shows a password field. */
         const val DETECT_SCRIPT = """(function () {
   function shown(el) { var r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0 && getComputedStyle(el).visibility !== "hidden"; }
