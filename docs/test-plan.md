@@ -52,6 +52,7 @@ checklist below and tick what passed. Anything that fails gets its own issue.
 - [ ] A dashboard behind a password prompt, and one behind a login form: the TV asks, the phone code signs in, and after a restart the saved sign-in is used without asking **(auto)**
 - [ ] *Not now* on a sign-in card, then going home: Back opens the menu, and the card doesn't come back **(auto)**
 - [ ] With rotation on, a dashboard shown with `show_dashboard` and a duration stays for that duration, then rotation goes on **(auto)**
+- [ ] After Home, or another app left without sound, PleatView comes back after *Come back from other apps after* **(auto)**; not while a video plays in that app, and not while a settings panel only covers part of it
 - [ ] A real site's login form (Grafana, Proxmox, UniFi) signs in from the phone code; a wrong password asks again; *Forget saved sign-ins* in the menu removes it
 
 ### Notifications

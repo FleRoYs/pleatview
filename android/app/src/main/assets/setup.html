@@ -120,6 +120,7 @@
         <div class="row">
           <label>Rotate dashboards (seconds) <input name="rotate_seconds" type="number" min="0"><small>0 = off</small></label>
           <label>Return home after (idle minutes) <input name="return_home_minutes" type="number" min="0"><small>0 = never</small></label>
+          <label>Come back from other apps after (minutes) <input name="reopen_minutes" type="number" min="0"><small>0 = never</small></label>
           <label>Reload every (minutes) <input name="reload_minutes" type="number" min="0"><small>0 = never</small></label>
         </div>
         <label class="check"><input type="checkbox" name="keep_screen_on"> Keep the screen on</label>
@@ -282,7 +283,7 @@ function textToDashboards(text) {
 async function showSettings() {
   const config = await api("/api/config");
   const form = $("#config-form");
-  for (const name of ["device_name", "ha_url", "home_dashboard", "kiosk", "zoom", "rotate_seconds", "return_home_minutes", "reload_minutes"]) {
+  for (const name of ["device_name", "ha_url", "home_dashboard", "kiosk", "zoom", "rotate_seconds", "return_home_minutes", "reopen_minutes", "reload_minutes"]) {
     form.elements[name].value = config[name] ?? "";
   }
   form.elements.keep_screen_on.checked = config.keep_screen_on;
@@ -328,6 +329,7 @@ $("#config-form").addEventListener("submit", async (event) => {
     zoom: Number(form.zoom.value || 100),
     rotate_seconds: Number(form.rotate_seconds.value || 0),
     return_home_minutes: Number(form.return_home_minutes.value || 0),
+    reopen_minutes: Number(form.reopen_minutes.value || 0),
     reload_minutes: Number(form.reload_minutes.value || 0),
     keep_screen_on: form.keep_screen_on.checked,
     launch_on_boot: form.launch_on_boot.checked,

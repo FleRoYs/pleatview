@@ -147,6 +147,7 @@ never sent to Home Assistant.
 | `zoom` | 100 | Page zoom in percent (25–400); lower fits more on screen |
 | `rotate_seconds` | 0 | Cycle `dashboards` when nobody is using the remote |
 | `return_home_minutes` | 0 | Return home this long after remote-control browsing |
+| `reopen_minutes` | 10 | Come back this long after someone left for another app, once nothing has played sound for as long (needs `overlay_permission` on Android 10+) |
 | `reload_minutes` | 0 | Periodic full reload |
 | `keep_screen_on` | true | Stop the screensaver while a dashboard is shown |
 | `launch_on_boot` | true | Open after boot (needs `overlay_permission`) |

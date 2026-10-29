@@ -140,6 +140,7 @@ class MainActivity : Activity(), Hub.Display, DashboardController.Callbacks, Med
             foreground = true
             overlayPermission = overlays
         }
+        app.hub.uiShown()
         drainPending()
     }
 
@@ -150,6 +151,7 @@ class MainActivity : Activity(), Hub.Display, DashboardController.Callbacks, Med
         closeMenu()
         dashboard.onPause()
         app.hub.update { foreground = false }
+        app.hub.uiHidden()
         super.onStop()
     }
 
