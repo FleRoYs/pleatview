@@ -20,32 +20,37 @@ on their own.
 
 ## Status
 
-Last updated 29 October 2026. **Current milestone: M1** (M0 finished early).
+Last updated 30 October 2026. **Current milestone: M1** (M0 finished early).
 
 | Milestone | Target | Needs first | Status |
 | --- | --- | --- | --- |
 | [M0](#m0--foundation) Foundation | Fri 6 Nov 2026 | — | Done 28 Oct |
 | [M1](#m1--validated-on-real-android-tv-hardware) Validated on real Android TV hardware | Fri 20 Nov 2026 | M0, devices | In progress |
-| [M2](#m2--public-beta) Public beta and Google Play closed test | Fri 4 Dec 2026 | M1, Play account, 12 testers | Not started |
+| [M2](#m2--public-beta) Public beta and Google Play closed test | Fri 4 Dec 2026 | M1, 12 beta testers | Not started |
 | [M3](#m3--google-play-and-amazon-appstore) Google Play and Amazon Appstore | Fri 15 Jan 2027 | M2, store reviews | Not started |
 | [M4](#m4--web-player) Web player for any TV browser | Fri 29 Jan 2027 | M3 submitted | Not started |
-| [M5](#m5--lg-and-samsung-apps) LG and Samsung apps submitted | Fri 5 Mar 2027 | M4, seller accounts, TVs | Not started |
+| [M5](#m5--lg-and-samsung-apps) LG and Samsung apps submitted | Fri 5 Mar 2027 | M4, test TVs | Not started |
 | [M6](#m6--on-every-store) On every store | Fri 2 Apr 2027 | M5 approvals, 30-day soak | Not started |
 
 Progress is tracked in [GitHub milestones](https://github.com/Hustlesman/pleatview/milestones).
-Issues exist only for the current milestone and the long-lead tasks; each later milestone
-gets its issues when it starts.
+Bugs and features for the current milestone are [issues](https://github.com/Hustlesman/pleatview/issues);
+each later milestone gets its issues when it starts.
 
-Done so far: v1.0.0 is published as a signed release (versions are 1.x from 29 Oct; each
-milestone ends with the next minor release). One command (`tools/e2e/run.py`) tests
-the Android TV app and the Home Assistant integration together on an Android TV 16 emulator:
-pairing, automatic sign-in, kiosk mode, casting, cameras, notifications, standby, updates and
-recovery from a Home Assistant restart. It passes against Home Assistant 2025.1 and 2026.10.
-25 app tests and 21 integration tests pass. Nothing has run on real TV hardware yet.
+**Want to help?** Tell us about a device that works or doesn't, report a bug, or join the
+Google TV beta ([#9](https://github.com/Hustlesman/pleatview/issues/9)).
+
+Done so far: v1.0.1 is published as a signed release with build attestations (versions are
+1.x from 29 Oct; each milestone ends with the next minor release). One command
+(`tools/e2e/run.py`) tests the Android TV app and the Home Assistant integration together in
+16 checks, on an Android TV 16 emulator or a real TV: pairing, automatic sign-in, kiosk mode,
+casting, cameras, notifications, sign-ins, standby, updates and recovery from a Home Assistant
+restart. The first real TV, a Fire TV Stick, passed the automated checks on 29 Oct and its
+first soak test.
+44 app tests and 25 integration tests pass.
 
 ## How we stay on track
 
-1. **One milestone at a time.** Store reviews and account approvals run in the background.
+1. **One milestone at a time.** Store reviews run in the background.
    When a milestone is only waiting on a reviewer, the next one may start.
 2. **Done means every exit box is ticked.** Not "mostly done".
 3. **New ideas go to the [parking lot](#parking-lot)** and are only looked at between
@@ -57,21 +62,6 @@ recovery from a Home Assistant restart. It passes against Home Assistant 2025.1 
    milestones. If a milestone is
    more than a week late, move scope to the parking lot rather than moving the date.
 6. **Every milestone ends with a tagged release** and a changelog.
-
-## Start this week (long lead times)
-
-These take days to weeks to come back, so they start now, alongside M0.
-
-| Task | Why now | Needed by |
-| --- | --- | --- |
-| Create a **Google Play developer account** on a new, dedicated Google account. *Personal*: $25 and ID verification, but production needs a closed test with ≥12 testers for 14 days. *Organization*: needs a registered business and a D-U-N-S number (free, up to ~30 days), with no tester rule. | The closed test can't start until it's verified | M1 |
-| Create a **release signing key**, back it up offline in two places, add it to GitHub secrets | Every future update must be signed with the same key | M0 |
-| Register with **Android developer verification** (package `com.hustlesman.pleatview` and the signing key). Check whether it covers TV devices. | Google is rolling out verification for sideloaded apps from September 2026, globally in 2027 | M2 |
-| **Amazon developer** account (free) | Needed to submit to the Fire TV Appstore | M3 |
-| **LG**: developer account (TV Developer Mode) and Seller Lounge registration | Seller approval can take weeks and may need business details | M5 |
-| **Samsung**: Samsung account, Tizen certificates, and a Samsung Apps TV Seller Office application | Partner approval can take weeks and may need a registered business | M5 |
-| **Hardware**: Google TV Streamer, Chromecast with Google TV (HD), a Fire TV on Fire OS, and access to a 2021-or-newer LG TV and Samsung TV | Real-device testing. The newest Fire TV Stick 4K Select runs Vega OS, not Fire OS, so avoid it | M1 / M5 |
-| Recruit **12+ beta testers** with Google TV devices (Home Assistant community) | Google Play's closed-test rule for personal accounts | M2 |
 
 ## M0 — Foundation
 
@@ -89,7 +79,7 @@ These take days to weeks to come back, so they start now, alongside M0.
 - [x] Release key in GitHub secrets; `tools/bump-version.sh` keeps app and integration versions in step
 - [x] `pleatview.hustlesman.com` live over HTTPS
 - [x] v0.1.1 tagged and published ([release](https://github.com/Hustlesman/pleatview/releases/tag/v0.1.1))
-- [x] Long-lead tasks tracked as issues in the milestones that need them
+- [x] Work tracked in GitHub milestones and issues
 
 **Exit:** CI green on `main`, the site is live, and a signed v0.1.1 APK can be downloaded
 from GitHub Releases.
@@ -117,8 +107,8 @@ from GitHub Releases.
 - [ ] 7-day soak on the Streamer and the Chromecast HD, with a dashboard showing a live
       camera and rotation on. No crash or blank screen, stable memory (checked daily),
       and automatic recovery from a router reboot and a Home Assistant restart.
-      `tools/soak/run.py` automates it; a first run of 12+ hours started on the Fire TV
-      Stick on 29 Oct, and the Chromecast HD follows
+      `tools/soak/run.py` automates it. A first run on the Fire TV Stick passed at 15 hours
+      (memory +10 %, no crashes) and keeps running; the Chromecast HD follows
 - [x] Decide the foreground-service type Google Play will accept: `connectedDevice`
       (Home Assistant controls the TV over the network), with Wi-Fi kept optional
 - [x] Ask for "Display over other apps" from the PleatView menu on TVs that have that
@@ -129,6 +119,8 @@ from GitHub Releases.
 - [x] Fixes from the first hardware run: Webpage dashboards (Grafana, OpenSearch…) open
       the site directly, with the zoom, instead of in Home Assistant's frame; a
       discovered TV goes straight to the PIN; the setup screen has a QR code for phones
+- [x] PleatView comes back by itself when someone leaves it in another app and nothing has
+      played sound for a while (10 minutes by default)
 
 **Exit:** the test plan passes on all four devices, the soak passes, v1.1.0 is released.
 
@@ -142,15 +134,10 @@ requires.
       device report
 - [ ] **Demo for reviewers:** a "Try the demo" option on the setup screen, connected to
       an isolated, read-only demo Home Assistant (demo data only, never a real home).
-      Google reviews closed-test builds too, and reviewers can't test without a server.
-- [ ] Google Play setup the closed test needs: privacy policy, Data safety ("no data
-      collected"), content rating, target audience, app access (pointing reviewers at
-      the demo), a basic listing, and the app bundle with Play App Signing
-- [ ] Google Play closed test with ≥12 testers, who join through a Google Group so there
-      are no email lists to maintain. The 14 days start when the first closed-test build
-      passes review.
-- [x] Optional donation link (Stripe Payment Link) on the website and GitHub. It stays
-      out of the app and store listings, which Google Play's payment rules restrict.
+      Store reviewers can't test without a server, and Google reviews beta builds too.
+- [ ] Google Play beta: 12 or more testers with Google TV devices who stay in for 14 days,
+      which Google requires before PleatView can go public. Sign up in
+      [#9](https://github.com/Hustlesman/pleatview/issues/9)
 - [ ] P1 bugs fixed within 48 hours; a beta build every week
 - [ ] Device compatibility table on the website, filled from tester reports
 - [ ] One-press pairing: approve Home Assistant on the TV with OK, instead of typing the PIN
@@ -160,11 +147,11 @@ requires.
       *Settings → Marketplace*, which lists the HACS default repositories (checked in the
       2026.11 nightly; our "Open in HACS" links keep working). Get into the HACS default
       list: brand images in `custom_components/pleatview/brand/` (done), validation green
-      with nothing ignored (done), the repository under the Hustlesman organization with
-      hustlesman.com verified (done 29 Oct), a release after that, then the owner's pull request to
-      `hacs/default`. Until then the Marketplace asks 2026.11 users to connect GitHub once
-      (checked in 2026.11.0b0). Then the install guide says Marketplace → PleatView, with
-      HACS for older versions
+      with nothing ignored (done), and the request to `hacs/default`
+      ([sent 29 Oct](https://github.com/hacs/default/pull/12905), waiting for review). Until
+      then the Marketplace asks 2026.11 users to connect GitHub once (checked in
+      2026.11.0b0). Then the install guide says Marketplace → PleatView, with HACS for older
+      versions
 
 **Exit:** ≥12 testers active for 14 days, no open P1 bugs, the five most-reported issues
 fixed, v1.2.0 released.
@@ -174,13 +161,11 @@ fixed, v1.2.0 released.
 *Mon 7 Dec 2026 → Fri 15 Jan 2027* (reviews and holidays included). Install from the
 store on Google TV and Fire TV.
 
-- [ ] Full Google Play listing: TV screenshots (1920×1080), feature graphic, description
-- [ ] Foreground-service declaration with its demo video
-- [ ] Releases upload to Google Play automatically through a service account, so the
-      owner account is only needed for store forms
-- [ ] Android TV opted in; app checked against Google's TV app quality guidelines
-- [ ] Production access requested once the closed test has finished
-- [ ] Amazon Appstore listing for Fire TV (Fire OS devices only) submitted
+- [ ] Store listings with TV screenshots (1920×1080), a feature graphic and a description
+- [ ] Releases go to Google Play automatically from the release workflow
+- [ ] Checked against Google's TV app quality guidelines
+- [ ] Public on Google Play once the beta has run its 14 days
+- [ ] Submitted to the Amazon Appstore for Fire TV (Fire OS devices only)
 
 **Exit:** PleatView installs from Google Play on Google TV and from the Amazon Appstore on
 Fire TV, and both links are on the website and in the README.
@@ -222,8 +207,8 @@ kiosk. v1.4.0 is released.
       Developer Mode on a 2021+ LG TV, submitted to the LG Content Store
 - [ ] **Samsung Tizen:** `.wgt` built with the Tizen CLI and Samsung certificates, remote
       keys registered, screensaver disabled while showing a dashboard, tested on a 2021+
-      Samsung TV (Samsung Remote Test Lab for early checks), submitted through Seller
-      Office
+      Samsung TV (Samsung Remote Test Lab for early checks), submitted to Samsung TV
+      Apps
 - [ ] OLED burn-in protection: optional pixel shift, plus guidance in the docs
 
 **Exit:** both apps pass the vendors' pre-submission checklists on real TVs and are
@@ -264,8 +249,8 @@ submitted.
 | --- | --- |
 | Google Play rejects the background service or the TV app review fails | Choose the service type in M1, prepare the declaration video, and if needed only run the control server while the app is visible on the Play build |
 | A Home Assistant frontend release breaks kiosk mode or sign-in (monthly releases) | Scripted end-to-end test (M1) run against each Home Assistant beta; a fix release within a week |
-| Store reviewers can't test without a Home Assistant server | Demo mode and a public read-only demo instance (M3) |
-| LG or Samsung seller registration needs a company or takes too long | Apply in week one. Meanwhile, the web player works in their TV browsers and sideloading is documented |
+| Store reviewers can't test without a Home Assistant server | Demo mode and a public read-only demo instance (M2) |
+| LG or Samsung store approval takes too long | Meanwhile, the web player works in their TV browsers and sideloading is documented |
 | OLED burn-in on displays that stay on 24/7 | Pixel shift option, dark themes, night standby, guidance in the docs |
 | TV screensavers or energy-saving modes override keep-awake on webOS and Tizen | Use the platforms' keep-awake APIs in M5 and document the TV settings |
 | One developer, many platforms | The rules above: one milestone at a time, a fixed scope, and the parking lot |

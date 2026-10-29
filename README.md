@@ -321,8 +321,7 @@ listens only on 127.0.0.1. It saves screenshots, logs and a summary with the ver
 tested to `tools/e2e/out/`. With `--device` it runs the same checks on a real TV over the
 network: turn on *ADB debugging* (Fire TV) or *USB debugging* (Google TV) in the TV's
 developer options, and allow this computer when the TV asks. The manual
-checks for real devices are in [docs/test-plan.md](docs/test-plan.md), and
-[docs/stores/google-play.md](docs/stores/google-play.md) has the values for the Play Console.
+checks for real devices are in [docs/test-plan.md](docs/test-plan.md).
 
 The scripts only need Docker. In Android Studio, open `android/` (AGP 9.4, compileSdk 37,
 JDK 17+). The debug build enables WebView debugging, so `chrome://inspect` works.
