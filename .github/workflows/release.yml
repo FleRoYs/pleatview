@@ -7,6 +7,10 @@ on:
 
 permissions:
   contents: write
+  # Build attestations: anyone can check that a release file was built here.
+  id-token: write
+  attestations: write
+  artifact-metadata: write
 
 jobs:
   release:
@@ -57,15 +61,27 @@ jobs:
           name: pleatview-${{ github.ref_name }}-aab
           path: android/app/build/outputs/bundle/release/*.aab
 
-      # Fixed asset names keep https://github.com/FleRoYs/pleatview/releases/latest/download/pleatview.apk
+      - name: Package the release files
+        run: |
+          cp android/app/build/outputs/apk/release/app-release.apk pleatview.apk
+          (cd custom_components && zip -qr ../pleatview-integration.zip pleatview -x "*/__pycache__/*")
+          sha256sum pleatview.apk pleatview-integration.zip > SHA256SUMS
+
+      # Signed build provenance, so anyone can check where a file came from:
+      #   gh attestation verify pleatview.apk --repo Hustlesman/pleatview
+      - uses: actions/attest@v4
+        with:
+          subject-path: |
+            pleatview.apk
+            pleatview-integration.zip
+            android/app/build/outputs/bundle/release/*.aab
+
+      # Fixed asset names keep https://github.com/Hustlesman/pleatview/releases/latest/download/pleatview.apk
       # (and pleatview.hustlesman.com/apk) pointing at the newest release.
       - name: Publish the GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          cp android/app/build/outputs/apk/release/app-release.apk pleatview.apk
-          (cd custom_components && zip -qr ../pleatview-integration.zip pleatview -x "*/__pycache__/*")
-          sha256sum pleatview.apk pleatview-integration.zip > SHA256SUMS
           # "latest" skips pre-releases, so only tags like v1.2.0-rc.1 are marked as one.
           prerelease=""
           case "$GITHUB_REF_NAME" in *-*) prerelease="--prerelease" ;; esac

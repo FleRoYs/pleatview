@@ -19,7 +19,7 @@
       <a href="/#features">Features</a>
       <a href="/#install">Install</a>
       <a href="support.html">Support</a>
-      <a href="https://github.com/FleRoYs/pleatview">GitHub</a>
+      <a href="https://github.com/Hustlesman/pleatview">GitHub</a>
       <a class="button primary small" href="/#install">Get PleatView</a>
     </nav>
   </div>
@@ -31,8 +31,8 @@
   <p class="muted">PleatView is a free, open-source project by Hustlesman. Here's how to get help.</p>
 
   <div class="box">
-    <strong>Setting up?</strong> Follow the <a href="https://github.com/FleRoYs/pleatview#install">install guide</a>: three steps, no computer needed for the TV.<br>
-    <strong>Something wrong?</strong> <a href="https://github.com/FleRoYs/pleatview/issues/new">Open an issue on GitHub</a>.<br>
+    <strong>Setting up?</strong> Follow the <a href="https://github.com/Hustlesman/pleatview#install">install guide</a>: three steps, no computer needed for the TV.<br>
+    <strong>Something wrong?</strong> <a href="https://github.com/Hustlesman/pleatview/issues/new">Open an issue on GitHub</a>.<br>
     <strong>Something private</strong> (privacy, a donation, a security problem)? Email <a href="mailto:privacy@hustlesman.com">privacy@hustlesman.com</a>.
   </div>
 
@@ -47,7 +47,7 @@
   <h3>How do I know the app is genuine?</h3>
   <p>Every PleatView release is signed with the same key, and Android checks it on every update, so only a genuine PleatView can update the one you installed. The key's SHA-256 fingerprint is:</p>
   <p><code style="overflow-wrap:anywhere">27:7B:CC:FA:72:E6:00:CE:D2:58:EF:9B:C4:DE:43:C6:FA:2F:27:53:8A:98:59:B2:C6:F2:EC:7C:34:3A:E3:73</code></p>
-  <p>To check a downloaded APK yourself, run <code>apksigner verify --print-certs pleatview.apk</code>. The same fingerprint is published in <a href="/.well-known/assetlinks.json">assetlinks.json</a>, which ties this website to the app.</p>
+  <p>To check a downloaded APK yourself, run <code>apksigner verify --print-certs pleatview.apk</code>. The same fingerprint is published in <a href="/.well-known/assetlinks.json">assetlinks.json</a>, which ties this website to the app. From version 1.0.1, every release file also carries a signed build attestation from GitHub, which proves it was built from PleatView's public code. Check it with <code>gh attestation verify pleatview.apk --repo Hustlesman/pleatview</code>.</p>
 
   <h3>Home Assistant doesn't find the TV</h3>
   <p>Open PleatView on the TV first. Discovery doesn't cross separate networks or VLANs. If yours are split, add the PleatView integration manually in Home Assistant (<em>Settings → Devices &amp; services → Add integration</em>) with the address shown on the TV.</p>
@@ -75,7 +75,7 @@
   <p>Remove the integration in Home Assistant, which deletes the user it created and resets the TV. Then uninstall the app on the TV.</p>
 
   <h2>Reporting a problem</h2>
-  <p><a href="https://github.com/FleRoYs/pleatview/issues/new">Open an issue on GitHub</a> and include:</p>
+  <p><a href="https://github.com/Hustlesman/pleatview/issues/new">Open an issue on GitHub</a> and include:</p>
   <ul>
     <li>your TV or streaming device and its Android TV version,</li>
     <li>the PleatView version (in its menu: press Back on the home dashboard),</li>
@@ -105,7 +105,7 @@
       <a href="support.html">Support</a>
       <a href="privacy.html">Privacy</a>
       <a href="terms.html">Terms</a>
-      <a href="https://github.com/FleRoYs/pleatview">GitHub</a>
+      <a href="https://github.com/Hustlesman/pleatview">GitHub</a>
     </nav>
     <p class="fine">© 2026 Hustlesman. PleatView is not affiliated with Home Assistant, Nabu Casa, Google, Amazon, LG or Samsung.</p>
   </div>

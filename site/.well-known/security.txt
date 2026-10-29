@@ -1,6 +1,6 @@
-Contact: https://github.com/FleRoYs/pleatview/security/advisories/new
+Contact: https://github.com/Hustlesman/pleatview/security/advisories/new
 Contact: mailto:privacy@hustlesman.com
 Expires: 2027-10-29T00:00:00.000Z
 Preferred-Languages: en
 Canonical: https://pleatview.hustlesman.com/.well-known/security.txt
-Policy: https://github.com/FleRoYs/pleatview/security/policy
+Policy: https://github.com/Hustlesman/pleatview/security/policy

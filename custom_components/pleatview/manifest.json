@@ -6,6 +6,7 @@
     "frontend"
   ],
   "codeowners": [
+    "@Hustlesman",
     "@FleRoYs"
   ],
   "config_flow": true,
@@ -16,7 +17,7 @@
   "documentation": "https://pleatview.hustlesman.com",
   "integration_type": "device",
   "iot_class": "local_push",
-  "issue_tracker": "https://github.com/FleRoYs/pleatview/issues",
+  "issue_tracker": "https://github.com/Hustlesman/pleatview/issues",
   "requirements": [],
   "version": "1.0.0",
   "zeroconf": [
