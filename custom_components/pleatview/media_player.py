@@ -131,6 +131,9 @@ async def async_setup_entry(
     )
     platform.async_register_entity_service("home", {}, "async_home")
     platform.async_register_entity_service("reload", {}, "async_reload_dashboard")
+    platform.async_register_entity_service(
+        "forget_sign_ins", {vol.Optional("site"): cv.string}, "async_forget_sign_ins"
+    )
 
 
 def _playable(item: BrowseMedia) -> bool:
@@ -280,6 +283,8 @@ class PleatViewMediaPlayer(PleatViewEntity, MediaPlayerEntity):
             "auth_error": self._state.get("auth_error"),
             "last_error": self._state.get("last_error"),
             "overlay_permission": self._state.get("overlay_permission"),
+            # The dashboard that waits for a username and password on the TV, if any.
+            "sign_in_needed": (self._state.get("sign_in") or {}).get("title"),
             "app_version": self._state.get("app_version"),
         }
 
@@ -496,4 +501,8 @@ class PleatViewMediaPlayer(PleatViewEntity, MediaPlayerEntity):
     async def async_reload_dashboard(self) -> None:
         """Reload the dashboard page."""
         await self._device.async_command("reload")
+
+    async def async_forget_sign_ins(self, site: str | None = None) -> None:
+        """Forget the sign-ins the TV saved for dashboards: for one site, or all."""
+        await self._device.async_command("forget_sign_ins", site=site)
 

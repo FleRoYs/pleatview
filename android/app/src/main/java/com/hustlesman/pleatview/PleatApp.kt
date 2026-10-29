@@ -10,6 +10,8 @@ class PleatApp : Application() {
         private set
     lateinit var hub: Hub
         private set
+    lateinit var signIns: SignIns
+        private set
 
     /** The phone setup page served at `/`. */
     val setupPage: ByteArray by lazy { assets.open("setup.html").use { it.readBytes() } }
@@ -18,7 +20,8 @@ class PleatApp : Application() {
         super.onCreate()
         settings = Settings(this)
         pairing = Pairing(settings)
-        hub = Hub(this, settings, pairing)
+        signIns = SignIns(settings, KeystoreVault())
+        hub = Hub(this, settings, pairing, signIns)
     }
 
     companion object {

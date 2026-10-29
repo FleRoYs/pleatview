@@ -11,6 +11,7 @@ import android.os.Looper
 import android.os.SystemClock
 import android.util.Log
 import android.webkit.ConsoleMessage
+import android.webkit.HttpAuthHandler
 import android.webkit.JavascriptInterface
 import android.webkit.PermissionRequest
 import android.webkit.RenderProcessGoneDetail
@@ -44,6 +45,9 @@ class DashboardController(
     interface Callbacks {
         /** A problem worth showing on screen, or null when it's resolved. */
         fun onStatus(message: String?)
+
+        /** A page asks for a username and password, or null once it no longer does. */
+        fun onSignIn(request: SignInRequest?)
     }
 
     private val main = Handler(Looper.getMainLooper())
@@ -67,6 +71,10 @@ class DashboardController(
     private var retryAttempt = 0
     private val forcedAuth = ArrayDeque<Long>()
     private var networkCallback: ConnectivityManager.NetworkCallback? = null
+    private val signInFlow = SignInFlow(PleatApp.from(activity).signIns, main) { request ->
+        hub.update { this.signIn = request }
+        callbacks.onSignIn(request)
+    }
 
     /** The last dashboard PleatView navigated to on its own (not by remote-control browsing). */
     var lastTarget: String = "/"
@@ -91,6 +99,7 @@ class DashboardController(
 
     fun start(config: Config) {
         this.config = config
+        signInFlow.config = config
         create()
         navigate(config.homePath)
         main.removeCallbacks(watchdogRunnable)
@@ -101,6 +110,7 @@ class DashboardController(
 
     fun applyConfig(old: Config, new: Config) {
         config = new
+        signInFlow.config = new
         if (old.haUrl != new.haUrl || old.haToken != new.haToken || old.zoom != new.zoom || old.kiosk != new.kiosk) {
             hub.update { authError = false }
             create()
@@ -110,6 +120,14 @@ class DashboardController(
         }
         if (old.reloadMinutes != new.reloadMinutes) scheduleReload()
     }
+
+    /** A username and password the user entered for the page that asked. */
+    fun applySignIn(username: String, password: String, remember: Boolean) = signInFlow.apply(username, password, remember)
+
+    /** "Not now" for the current sign-in request. */
+    fun dismissSignIn() = signInFlow.dismiss()
+
+    val signInRequest: SignInRequest? get() = signInFlow.pending
 
     /** Shows a dashboard path (or URL), in place when the HA frontend is already running. */
     fun navigate(target: String) {
@@ -201,10 +219,12 @@ class DashboardController(
         installZoom(view)
         container.addView(view, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
         webView = view
+        signInFlow.attach(view)
         view.requestFocus()
     }
 
     private fun destroyWebView() {
+        signInFlow.detach()
         main.removeCallbacks(retryRunnable)
         scriptHandler?.let { runCatching { it.remove() } }
         scriptHandler = null
@@ -297,6 +317,7 @@ class DashboardController(
     private fun load(url: String) {
         val view = webView ?: return
         main.removeCallbacks(retryRunnable)
+        signInFlow.onNavigate()
         currentUrl = url
         reportedPath = null
         failed = false
@@ -499,6 +520,8 @@ class DashboardController(
 
         override fun onPageFinished(view: WebView, url: String?) {
             if (view !== webView || url == BLANK) return
+            signInFlow.onPageLoaded()
+            signInFlow.onPageShown(url, finished = true)
             if (!listenerMode && config.isHaUrl(url)) {
                 view.evaluateJavascript(script(), null)
             } else if (zoomHandler == null && viewportWidth() != 0 && !config.isHaUrl(url)) {
@@ -512,6 +535,19 @@ class DashboardController(
                 retryAttempt = 0
                 callbacks.onStatus(null)
             }
+        }
+
+        override fun doUpdateVisitedHistory(view: WebView, url: String?, isReload: Boolean) {
+            // Single-page apps change routes without loading a page, for example to their login screen.
+            if (view === webView && url != BLANK) signInFlow.onPageShown(url, finished = false)
+        }
+
+        override fun onPageStarted(view: WebView, url: String?, favicon: Bitmap?) {
+            if (view === webView && url != BLANK) signInFlow.onPageStarted()
+        }
+
+        override fun onReceivedHttpAuthRequest(view: WebView, handler: HttpAuthHandler, host: String, realm: String) {
+            if (view === webView) signInFlow.onPrompt(handler, host, realm) else handler.cancel()
         }
 
         override fun onReceivedError(view: WebView, request: WebResourceRequest, error: WebResourceError) {

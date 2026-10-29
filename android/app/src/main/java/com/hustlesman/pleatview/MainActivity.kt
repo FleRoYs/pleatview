@@ -1,6 +1,7 @@
 package com.hustlesman.pleatview
 
 import android.app.Activity
+import android.app.AlertDialog
 import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.os.Build
@@ -8,10 +9,13 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
+import android.text.InputType
 import android.view.KeyEvent
 import android.view.View
 import android.view.WindowManager
 import android.widget.Button
+import android.widget.CheckBox
+import android.widget.EditText
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -32,6 +36,7 @@ class MainActivity : Activity(), Hub.Display, DashboardController.Callbacks, Med
     private lateinit var menuOverlay: View
     private lateinit var menuItems: LinearLayout
     private lateinit var curtain: View
+    private lateinit var signInCard: View
 
     private val main = Handler(Looper.getMainLooper())
     private var visible = false
@@ -44,6 +49,7 @@ class MainActivity : Activity(), Hub.Display, DashboardController.Callbacks, Med
 
     private val config: Config get() = app.settings.config
     private val menuVisible: Boolean get() = menuOverlay.visibility == View.VISIBLE
+    private val signInVisible: Boolean get() = signInCard.visibility == View.VISIBLE
 
     private val revertRunnable = Runnable { dashboard.navigate(config.homePath) }
     private val setupRefresh = object : Runnable {
@@ -57,7 +63,7 @@ class MainActivity : Activity(), Hub.Display, DashboardController.Callbacks, Med
             val seconds = config.rotateSeconds
             if (seconds <= 0) return
             val idle = SystemClock.elapsedRealtime() - lastInput > ROTATE_INPUT_GRACE_MS
-            if (visible && !standby && idle && !menuVisible && !media.isFullscreen && !webOverlay.isFullscreen) {
+            if (visible && !standby && idle && !menuVisible && !signInVisible && !media.isFullscreen && !webOverlay.isFullscreen) {
                 cycleDashboard(+1)
             }
             main.postDelayed(this, seconds * 1000L)
@@ -93,6 +99,9 @@ class MainActivity : Activity(), Hub.Display, DashboardController.Callbacks, Med
         menuOverlay = findViewById(R.id.menu_overlay)
         menuItems = findViewById(R.id.menu_items)
         curtain = findViewById(R.id.standby_curtain)
+        signInCard = findViewById(R.id.signin_card)
+        findViewById<Button>(R.id.signin_enter).setOnClickListener { showSignInDialog() }
+        findViewById<Button>(R.id.signin_not_now).setOnClickListener { dashboard.dismissSignIn() }
         toasts = Toasts(findViewById(R.id.toast_layer))
         dashboard = DashboardController(this, findViewById(R.id.dashboard_container), app.hub, this)
         media = MediaController(
@@ -182,6 +191,7 @@ class MainActivity : Activity(), Hub.Display, DashboardController.Callbacks, Med
             is Command.Mute -> media.setMuted(command.muted)
             Command.Home -> goHome()
             Command.Reload -> dashboard.reload()
+            is Command.ForgetSignIns -> app.signIns.forget(command.site) // normally handled by the Hub
             Command.Play -> media.resume()
             Command.Pause -> media.pause()
             Command.Stop -> {
@@ -199,6 +209,7 @@ class MainActivity : Activity(), Hub.Display, DashboardController.Callbacks, Med
 
     override fun onPairingChanged() {
         if (setupScreen.visibility == View.VISIBLE) refreshSetup()
+        dashboard.signInRequest?.let(::showSignInCard) // the code on the card carries the PIN
         if (menuVisible) openMenu()
     }
 
@@ -207,6 +218,77 @@ class MainActivity : Activity(), Hub.Display, DashboardController.Callbacks, Med
     override fun onStatus(message: String?) {
         statusBanner.text = message
         statusBanner.visibility = if (message == null) View.GONE else View.VISIBLE
+    }
+
+    override fun onSignIn(request: SignInRequest?) {
+        if (request == null) {
+            val hadFocus = signInCard.hasFocus()
+            signInCard.visibility = View.GONE
+            if (hadFocus) dashboard.focus()
+        } else {
+            showSignInCard(request)
+        }
+    }
+
+    override fun applySignIn(username: String, password: String, remember: Boolean) =
+        dashboard.applySignIn(username, password, remember)
+
+    private fun showSignInCard(request: SignInRequest) {
+        findViewById<TextView>(R.id.signin_title).text = getString(R.string.signin_title, request.title)
+        findViewById<View>(R.id.signin_failed).visibility = if (request.failed) View.VISIBLE else View.GONE
+        val qr = findViewById<ImageView>(R.id.signin_qr)
+        val ip = NetUtil.localIpv4()
+        if (ip != null) {
+            val url = SetupCode.signInUrl(ip, app.settings.port, app.pairing.pin, request.title)
+            if (qr.contentDescription != url) {
+                qr.setImageBitmap(SetupCode.bitmap(url, (220 * resources.displayMetrics.density).toInt()))
+                qr.contentDescription = url
+            }
+            qr.visibility = View.VISIBLE
+        } else {
+            qr.visibility = View.INVISIBLE
+        }
+        val wasVisible = signInVisible
+        signInCard.visibility = View.VISIBLE
+        if (!wasVisible && !menuVisible) findViewById<Button>(R.id.signin_enter).requestFocus()
+    }
+
+    /** Typing on the TV, with the remote's keyboard or the TV maker's phone app. */
+    private fun showSignInDialog() {
+        val request = dashboard.signInRequest ?: return
+        val pad = (20 * resources.displayMetrics.density).toInt()
+        val username = EditText(this).apply {
+            hint = getString(R.string.signin_username)
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
+            setSingleLine()
+        }
+        val password = EditText(this).apply {
+            hint = getString(R.string.signin_password)
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
+            setSingleLine()
+        }
+        val remember = CheckBox(this).apply {
+            text = getString(R.string.signin_remember)
+            isChecked = true
+        }
+        val form = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(pad, pad / 2, pad, 0)
+            addView(username)
+            addView(password)
+            addView(remember)
+        }
+        AlertDialog.Builder(this, android.R.style.Theme_DeviceDefault_Dialog_Alert)
+            .setTitle(getString(R.string.signin_title, request.title))
+            .setView(form)
+            .setPositiveButton(R.string.signin_submit) { _, _ ->
+                if (password.text.isNotEmpty()) {
+                    dashboard.applySignIn(username.text.toString().trim(), password.text.toString(), remember.isChecked)
+                }
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+        username.requestFocus()
     }
 
     override fun onMediaClosed() = onLayerClosed()
@@ -372,6 +454,7 @@ class MainActivity : Activity(), Hub.Display, DashboardController.Callbacks, Med
         when {
             standby -> wake()
             menuVisible -> closeMenu()
+            signInVisible -> dashboard.dismissSignIn()
             media.isFullscreen -> media.stop()
             webOverlay.current != null -> webOverlay.close()
             media.isActive -> media.stop()
@@ -412,6 +495,14 @@ class MainActivity : Activity(), Hub.Display, DashboardController.Callbacks, Med
                 }
             }
             addMenuButton(getString(R.string.menu_reload)) { dashboard.reload() }
+        }
+        val saved = app.signIns.count
+        if (saved > 0) {
+            addMenuButton(getString(R.string.menu_forget_signins, saved)) {
+                app.signIns.forget()
+                closeMenu()
+                toasts.show(Command.Notify(null, getString(R.string.signins_forgotten), null, 6, Command.Position.TOP_RIGHT))
+            }
         }
         val exit = addMenuButton(getString(R.string.menu_exit)) { finish() }
         menuOverlay.visibility = View.VISIBLE

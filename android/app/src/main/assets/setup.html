@@ -32,7 +32,9 @@
   footer a { color: var(--accent); }
   #pin { font-size: 28px; letter-spacing: .3em; text-align: center; font-family: ui-monospace, Menlo, monospace; }
   a.button { display: inline-block; font-weight: 600; padding: 10px 18px; border-radius: 8px; background: var(--accent); color: #062430; text-decoration: none; }
-  #start h2 { margin-top: 0; }
+  #start h2, #signin h2 { margin-top: 0; }
+  #signins { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; }
+  #signins li { display: flex; justify-content: space-between; align-items: center; gap: 12px; overflow-wrap: anywhere; }
   #start ol { padding-left: 20px; margin: 0 0 14px; }
   #start li { margin: 0 0 12px; }
   .pin { font: 700 22px ui-monospace, Menlo, monospace; letter-spacing: .15em; margin-right: 8px; }
@@ -43,6 +45,23 @@
 <main>
   <h1>PleatView</h1>
   <p class="sub" id="device">Connecting…</p>
+
+  <section id="signin" hidden>
+    <h2>Sign in to <span id="signin-title"></span></h2>
+    <p class="note">The TV asks for this dashboard's username and password. They stay on the TV, and only this dashboard gets them.</p>
+    <form id="signin-form">
+      <label>Username
+        <input id="signin-username" name="username" autocomplete="username" autocapitalize="none" spellcheck="false">
+      </label>
+      <label>Password
+        <input id="signin-password" name="password" type="password" autocomplete="current-password" required>
+      </label>
+      <label class="check"><input type="checkbox" id="signin-remember" checked> Keep me signed in on this TV</label>
+      <button>Sign in</button>
+      <p class="error" id="signin-error"></p>
+    </form>
+    <p class="ok" id="signin-done" hidden>Sent to the TV. If the site accepts it, the dashboard appears; if not, the TV asks again.</p>
+  </section>
 
   <section id="start" hidden>
     <h2>Add this TV to Home Assistant</h2>
@@ -110,6 +129,13 @@
       </form>
     </section>
 
+    <h2>Sign-ins saved on this TV</h2>
+    <section>
+      <p class="note" id="signins-empty">None yet. When a dashboard asks for a username and password, the TV shows a code to sign in with your phone.</p>
+      <ul id="signins"></ul>
+      <p class="error" id="signins-error"></p>
+    </section>
+
     <h2>Try it</h2>
     <section>
       <div class="actions">
@@ -127,8 +153,11 @@
 "use strict";
 const $ = (selector) => document.querySelector(selector);
 let token = sessionStorage.getItem("pleatview-token");
-// The QR code on the TV carries its PIN in the URL fragment, which never leaves the phone.
-let scannedPin = (/^#pin=(\d{6})$/.exec(location.hash) || [])[1] || "";
+// The TV's QR codes carry its PIN, and for a sign-in the dashboard's name, in the URL
+// fragment, which never leaves the phone.
+const fragment = new URLSearchParams(location.hash.slice(1));
+let scannedPin = /^\d{6}$/.test(fragment.get("pin") || "") ? fragment.get("pin") : "";
+const signInTitle = fragment.get("signin");
 if (location.hash) history.replaceState(null, "", location.pathname + location.search);
 
 async function api(path, options = {}) {
@@ -157,6 +186,64 @@ function showPairing() {
   }
   $("#pair").hidden = false;
   $("#pin").focus();
+}
+
+function showSignIn() {
+  $("#signin-title").textContent = signInTitle;
+  for (const id of ["#start", "#pair", "#settings"]) $(id).hidden = true;
+  $("#signin").hidden = false;
+  $("#signin-username").focus();
+}
+
+$("#signin-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  $("#signin-error").textContent = "";
+  const headers = { "Content-Type": "application/json" };
+  if (token) headers.Authorization = "Bearer " + token;
+  const body = {
+    pin: scannedPin,
+    username: $("#signin-username").value.trim(),
+    password: $("#signin-password").value,
+    remember: $("#signin-remember").checked,
+  };
+  try {
+    const response = await fetch("/api/signin", { method: "POST", headers, body: JSON.stringify(body) });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(result.error || response.statusText);
+    $("#signin-form").hidden = true;
+    $("#signin-done").hidden = false;
+  } catch (error) {
+    const messages = {
+      invalid_pin: "This code has expired. Scan the code on the TV again.",
+      too_many_attempts: "Too many attempts. Wait a minute, then scan the code on the TV again.",
+      no_sign_in_pending: "The TV isn't asking for a sign-in any more.",
+    };
+    $("#signin-error").textContent = messages[error.message] || error.message;
+  }
+});
+
+async function showSignIns() {
+  const list = (await api("/api/signins")).sign_ins || [];
+  $("#signins").replaceChildren(...list.map((item) => {
+    const row = document.createElement("li");
+    const label = document.createElement("span");
+    label.textContent = item.site + (item.username ? " · " + item.username : "");
+    const forget = document.createElement("button");
+    forget.type = "button";
+    forget.className = "secondary";
+    forget.textContent = "Forget";
+    forget.addEventListener("click", async () => {
+      try {
+        await api("/api/signins", { method: "DELETE", body: JSON.stringify({ site: item.site }) });
+        await showSignIns();
+      } catch (error) {
+        $("#signins-error").textContent = error.message;
+      }
+    });
+    row.append(label, forget);
+    return row;
+  }));
+  $("#signins-empty").hidden = list.length > 0;
 }
 
 $("#copy-pin").addEventListener("click", () => {
@@ -206,6 +293,7 @@ async function showSettings() {
   $("#managed").hidden = !config.rev;
   $("#pair").hidden = true;
   $("#start").hidden = true;
+  showSignIns().catch((error) => { $("#signins-error").textContent = error.message; });
   $("#settings").hidden = false;
 }
 
@@ -276,6 +364,7 @@ document.querySelectorAll("[data-command]").forEach((button) => {
   } catch (error) {
     $("#device").textContent = "Can't reach the TV.";
   }
+  if (signInTitle) return showSignIn();
   if (token) {
     try { await showSettings(); return; } catch (error) { /* fall through to pairing */ }
   }

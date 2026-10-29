@@ -65,6 +65,25 @@ async def test_state_follows_the_tv(hass: HomeAssistant, fake_tv: FakeTV) -> Non
     await hass.config_entries.async_unload(entry.entry_id)
 
 
+async def test_sign_ins(hass: HomeAssistant, fake_tv: FakeTV) -> None:
+    entry = await setup_entry(hass, make_entry(fake_tv))
+    await fake_tv.wait_for_stream()
+    assert hass.states.get(ENTITY).attributes["sign_in_needed"] is None
+
+    # The TV reports a dashboard waiting for a username and password; automations can react.
+    await fake_tv.push(sign_in={"kind": "form", "title": "Grafana", "site": "http://grafana.lan:3000", "failed": False})
+    await _wait_for(lambda: hass.states.get(ENTITY).attributes["sign_in_needed"] == "Grafana")
+
+    target = {ATTR_ENTITY_ID: ENTITY}
+    await hass.services.async_call(DOMAIN, "forget_sign_ins", {**target, "site": "http://grafana.lan:3000"}, blocking=True)
+    await hass.services.async_call(DOMAIN, "forget_sign_ins", target, blocking=True)
+    assert fake_tv.commands[-2:] == [
+        {"command": "forget_sign_ins", "site": "http://grafana.lan:3000"},
+        {"command": "forget_sign_ins"},
+    ]
+    await hass.config_entries.async_unload(entry.entry_id)
+
+
 async def test_media_player_services(hass: HomeAssistant, fake_tv: FakeTV) -> None:
     entry = await setup_entry(hass, make_entry(fake_tv))
     target = {ATTR_ENTITY_ID: ENTITY}

@@ -9,6 +9,7 @@ import android.os.Looper
 import android.os.PowerManager
 import android.os.SystemClock
 import android.util.Log
+import org.json.JSONArray
 import org.json.JSONObject
 import java.util.concurrent.CopyOnWriteArrayList
 
@@ -21,6 +22,7 @@ class Hub(
     private val app: Application,
     private val settings: Settings,
     private val pairing: Pairing,
+    private val signIns: SignIns,
 ) : Api.Backend {
 
     /** Implemented by MainActivity. All calls happen on the main thread. */
@@ -29,6 +31,9 @@ class Hub(
         fun handle(command: Command)
         fun onConfigChanged(old: Config, new: Config)
         fun onPairingChanged()
+
+        /** A username and password for the page that asked for one. */
+        fun applySignIn(username: String, password: String, remember: Boolean)
     }
 
     private val main = Handler(Looper.getMainLooper())
@@ -40,6 +45,9 @@ class Hub(
 
     @Volatile
     private var stateJson: String
+
+    @Volatile
+    private var signInPending = false
 
     var display: Display? = null
 
@@ -83,9 +91,23 @@ class Hub(
 
     override fun updateConfig(update: JSONObject): Config = settings.update(update)
 
+    override fun submitSignIn(username: String, password: String, remember: Boolean): Boolean {
+        if (!signInPending) return false
+        main.post { display?.applySignIn(username, password, remember) }
+        return true
+    }
+
+    override fun signIns(): JSONArray = signIns.describe()
+
+    override fun forgetSignIns(site: String?): Int = signIns.forget(site)
+
     // ---- main thread ----
 
     private fun route(command: Command) {
+        if (command is Command.ForgetSignIns) {
+            signIns.forget(command.site)
+            return
+        }
         val display = display
         if (display != null && display.isVisible) {
             display.handle(command)
@@ -116,6 +138,7 @@ class Hub(
     /** Mutates the published state. Main thread only; changes are coalesced. */
     fun update(block: StateModel.() -> Unit) {
         state.block()
+        signInPending = state.signIn != null
         if (publishScheduled) return
         publishScheduled = true
         main.postDelayed({
@@ -179,6 +202,7 @@ class StateModel {
     var muted = false
     var configRev = ""
     var overlayPermission = false
+    var signIn: SignInRequest? = null
 
     fun toJson(): JSONObject = JSONObject()
         .put("foreground", foreground)
@@ -195,6 +219,7 @@ class StateModel {
         .put("muted", muted)
         .put("config_rev", configRev)
         .put("overlay_permission", overlayPermission)
+        .put("sign_in", signIn?.toJson() ?: JSONObject.NULL)
 
     companion object {
         const val POWER_ON = "on"

@@ -1,5 +1,6 @@
 package com.hustlesman.pleatview
 
+import org.json.JSONArray
 import org.json.JSONObject
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -33,6 +34,21 @@ class ApiTest {
         }
         override fun config() = config
         override fun updateConfig(update: JSONObject): Config = config.merge(update).also { config = it }
+
+        val signIns = CopyOnWriteArrayList<Triple<String, String, Boolean>>()
+        var signInPending = true
+        var forgotten: String? = "nothing yet"
+
+        override fun submitSignIn(username: String, password: String, remember: Boolean): Boolean {
+            if (signInPending) signIns += Triple(username, password, remember)
+            return signInPending
+        }
+        override fun signIns(): JSONArray =
+            JSONArray().put(JSONObject().put("kind", "form").put("site", "http://grafana.lan:3000").put("username", "kiosk"))
+        override fun forgetSignIns(site: String?): Int {
+            forgotten = site
+            return 1
+        }
 
         fun publish(json: String) {
             state = json
@@ -161,5 +177,38 @@ class ApiTest {
         backend.publish("""{"power":"standby"}""")
         assertEquals("""{"power":"standby"}""", nextData())
         connection.disconnect()
+    }
+
+    @Test
+    fun `the pin from the TV's sign-in code works once`() {
+        val pin = pairing.pin
+        val body = """{"pin":"$pin","username":"kiosk","password":"s3cret"}"""
+        assertEquals(200, request("POST", "/api/signin", body).status)
+        assertEquals(listOf(Triple("kiosk", "s3cret", true)), backend.signIns.toList())
+        assertEquals(403, request("POST", "/api/signin", body).status) // the PIN changed
+        assertEquals(403, request("POST", "/api/signin", """{"username":"a","password":"b"}""").status)
+    }
+
+    @Test
+    fun `a paired client signs in with its token, and only while a page asks`() {
+        val token = pair()
+        assertEquals(400, request("POST", "/api/signin", """{"username":"a"}""", token).status)
+        assertEquals(200, request("POST", "/api/signin", """{"username":"a","password":"b","remember":false}""", token).status)
+        assertEquals(Triple("a", "b", false), backend.signIns.last())
+        backend.signInPending = false
+        assertEquals(409, request("POST", "/api/signin", """{"username":"a","password":"b"}""", token).status)
+    }
+
+    @Test
+    fun `saved sign-ins are listed without passwords and forgotten with a token`() {
+        assertEquals(401, request("GET", "/api/signins").status)
+        val token = pair()
+        val list = request("GET", "/api/signins", token = token).json.getJSONArray("sign_ins")
+        assertEquals("kiosk", list.getJSONObject(0).getString("username"))
+        assertTrue(!list.toString().contains("password"))
+        assertEquals(200, request("DELETE", "/api/signins", """{"site":"http://grafana.lan:3000"}""", token).status)
+        assertEquals("http://grafana.lan:3000", backend.forgotten)
+        request("DELETE", "/api/signins", token = token)
+        assertEquals(null, backend.forgotten)
     }
 }

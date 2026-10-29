@@ -8,8 +8,8 @@ import org.json.JSONObject
 import java.util.UUID
 import java.util.concurrent.CopyOnWriteArrayList
 
-/** Persistent storage for the device identity, configuration and pairing tokens. */
-class Settings(private val context: Context) : Pairing.Store {
+/** Persistent storage for the device identity, configuration, pairing tokens and (sealed) sign-ins. */
+class Settings(private val context: Context) : Pairing.Store, SignIns.Store {
     private val prefs = context.getSharedPreferences("pleatview", Context.MODE_PRIVATE)
     private val listeners = CopyOnWriteArrayList<(old: Config, new: Config) -> Unit>()
 
@@ -50,6 +50,12 @@ class Settings(private val context: Context) : Pairing.Store {
         prefs.edit { putString(KEY_TOKENS, json) }
     }
 
+    override fun loadSignIns(): String? = prefs.getString(KEY_SIGN_INS, null)
+
+    override fun saveSignIns(value: String?) {
+        prefs.edit { if (value == null) remove(KEY_SIGN_INS) else putString(KEY_SIGN_INS, value) }
+    }
+
     private fun load(): Config {
         val raw = prefs.getString(KEY_CONFIG, null) ?: return Config()
         return runCatching { Config.fromJson(JSONObject(raw)) }.getOrDefault(Config())
@@ -87,6 +93,7 @@ class Settings(private val context: Context) : Pairing.Store {
         private const val KEY_DEVICE_ID = "device_id"
         private const val KEY_CONFIG = "config"
         private const val KEY_TOKENS = "tokens"
+        private const val KEY_SIGN_INS = "sign_ins"
         private const val BROKEN_ANDROID_ID = "9774d56d682e549c" // shared by some Android 2.2 devices
     }
 }

@@ -216,6 +216,16 @@
     "reload": {
       "name": "Reload dashboard",
       "description": "Reloads the dashboard page."
+    },
+    "forget_sign_ins": {
+      "name": "Forget sign-ins",
+      "description": "Forgets the usernames and passwords the TV saved for dashboards that ask for one.",
+      "fields": {
+        "site": {
+          "name": "Site",
+          "description": "Only this site, as the TV's phone page lists it, such as https://grafana.example.com. Empty forgets all."
+        }
+      }
     }
   }
 }

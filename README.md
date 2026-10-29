@@ -120,6 +120,16 @@ Assistant (*Settings → Dashboards → Add dashboard → Webpage*) and it becom
 TV opens the site itself rather than inside Home Assistant's frame, so sites that refuse
 frames or need their own sign-in cookie still load, and the zoom applies to them as well.
 
+**Sites that ask for a sign-in.** When a dashboard shows a login form or a password
+prompt, the TV says "Sign in to *dashboard name*" with a QR code. Scan it, sign in on your
+phone (your password manager works there), and the TV takes it from there. It saves the
+sign-in once the site accepts it, encrypted with the TV's keystore and only ever offered to
+that site, so it signs in again by itself after a restart or an expired session. Sign-ins
+stay on the TV; Home Assistant only sees `sign_in_needed` on the media player, for
+automations. Forget them in the TV's menu, on the phone page, or with
+`pleatview.forget_sign_ins`. Where a site offers read-only links that need no sign-in, such
+as Grafana's public dashboards, those are the sturdiest choice for a wall display.
+
 | To… | Use |
 | --- | --- |
 | Switch dashboards | `media_player.select_source`, `pleatview.show_dashboard` (optional `duration` to return home), or the *Dashboards* folder in the media browser |
@@ -130,6 +140,7 @@ frames or need their own sign-in cookie still load, and the zoom applies to them
 | Open a web page | `pleatview.show_url` (full screen or picture-in-picture) |
 | Blank the screen | `media_player.turn_off` / `turn_on` (lets the TV's own sleep timer take over) |
 | Reset | `pleatview.home` (stop media, close overlays, go home), `pleatview.reload` |
+| Forget saved sign-ins | `pleatview.forget_sign_ins` (optional `site`) |
 
 `media_player.play_media` accepts `extra` keys: `mode` (`fullscreen`, `pip`,
 `background`), `position`, `size` (picture-in-picture width in %), `duration`, `title`,
