@@ -20,7 +20,7 @@ on their own.
 
 ## Status
 
-Last updated 28 October 2026. **Current milestone: M1** (M0 finished early).
+Last updated 29 October 2026. **Current milestone: M1** (M0 finished early).
 
 | Milestone | Target | Needs first | Status |
 | --- | --- | --- | --- |
@@ -111,12 +111,14 @@ from GitHub Releases.
       Fire TV Stick (3rd Gen, Fire OS 7.7, 1 GB): every automated check passes
       (`tools/e2e/run.py --device`, 29 Oct), and it opens by itself after a reboot; the
       other manual checks are still to do
-- [ ] Home Assistant versions: oldest supported (2025.1), current stable, beta. The
-      end-to-end test passed on 2025.1.4, 2026.10.4 and the 2026.11 nightly build on 28 Oct.
-      Still to run: the 2026.11 beta (due 28 Oct), and the stable release again before v1.1.0
+- [ ] Home Assistant versions: oldest supported (2025.1), current stable, beta. On 29 Oct
+      all 13 checks passed on 2025.1.4, 2026.10.4, the 2026.11 beta (2026.11.0b0) and the
+      2026.11 nightly. Still to run: the stable release again before v1.1.0
 - [ ] 7-day soak on the Streamer and the Chromecast HD, with a dashboard showing a live
       camera and rotation on. No crash or blank screen, stable memory (checked daily),
       and automatic recovery from a router reboot and a Home Assistant restart.
+      `tools/soak/run.py` automates it; a first run of 12+ hours started on the Fire TV
+      Stick on 29 Oct, and the Chromecast HD follows
 - [x] Decide the foreground-service type Google Play will accept: `connectedDevice`
       (Home Assistant controls the TV over the network), with Wi-Fi kept optional
 - [x] Ask for "Display over other apps" from the PleatView menu on TVs that have that
@@ -157,9 +159,12 @@ requires.
 - [ ] **In Home Assistant's Marketplace.** Home Assistant 2026.11 builds HACS in as
       *Settings → Marketplace*, which lists the HACS default repositories (checked in the
       2026.11 nightly; our "Open in HACS" links keep working). Get into the HACS default
-      list: brand images in `custom_components/pleatview/brand/`, validation green with
-      nothing ignored, pull request to `hacs/default`. Then the install guide says
-      Marketplace → PleatView, with HACS for older versions
+      list: brand images in `custom_components/pleatview/brand/` (done), validation green
+      with nothing ignored (done), the repository under a Hustlesman organization with a
+      verified domain, a release after that, then the owner's pull request to
+      `hacs/default`. Until then the Marketplace asks 2026.11 users to connect GitHub once
+      (checked in 2026.11.0b0). Then the install guide says Marketplace → PleatView, with
+      HACS for older versions
 
 **Exit:** ≥12 testers active for 14 days, no open P1 bugs, the five most-reported issues
 fixed, v1.2.0 released.

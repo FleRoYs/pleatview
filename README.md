@@ -6,13 +6,14 @@
   </picture>
 </h1>
 
-A lightweight Google TV / Android TV app plus a Home Assistant integration that turns
-a TV into an always-on Home Assistant display you can cast to.
+A lightweight app for Google TV, Android TV and Fire TV, plus a Home Assistant
+integration, that turns a TV into an always-on Home Assistant display you can cast to.
+Made by Hustlesman.
 
 **Website:** [pleatview.hustlesman.com](https://pleatview.hustlesman.com) ·
 **Status:** beta, see the [roadmap](ROADMAP.md) for validation and store releases.
 
-![A Home Assistant dashboard on a TV with PleatView](site/img/dashboard.webp)
+![A Home Assistant dashboard on a TV with PleatView](site/img/screens/dashboard.webp)
 
 - **Dashboards, continuously.** Any Home Assistant dashboard full screen, signed in
   automatically, without the sidebar and header, kept running for days. It recovers
@@ -21,7 +22,10 @@ a TV into an always-on Home Assistant display you can cast to.
   browser, camera streams, TTS announcements, internet radio, images and web pages.
   Video can play full screen or as picture-in-picture over the dashboard.
 - **Notifications.** `notify.send_message` shows a card on the TV, optionally with a
-  camera snapshot, even over other apps when allowed.
+  camera snapshot or an animated picture, even over other apps when allowed.
+- **Any web dashboard.** Webpage dashboards (Grafana, UniFi, OpenSearch…) open directly,
+  zoomed to fit. When one asks for a password, the TV shows a QR code: sign in on your
+  phone, and the TV keeps the sign-in, encrypted, on the TV only.
 - **Small.** The release APK is about 1.2 MB, with no Google Play services and no
   cloud. Everything stays on your LAN.
 
@@ -45,8 +49,8 @@ choose *Install*. Android asks once to allow installs from Downloader.
 
 The link always serves the newest signed release from
 [GitHub Releases](https://github.com/FleRoYs/pleatview/releases). Google Play and Amazon
-Appstore listings are on the [roadmap](ROADMAP.md). Android 7.0 or newer; so far it has
-been tested on an Android TV 16 emulator, and real devices are next.
+Appstore listings are on the [roadmap](ROADMAP.md). Android 7.0 or newer; see
+[Tested on](#tested-on) for the devices.
 
 <details>
 <summary>Install with adb instead, and allow overlays</summary>
@@ -76,10 +80,12 @@ otherwise), show notifications over other apps, and open PleatView at boot.
 
 [![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=FleRoYs&repository=pleatview&category=integration)
 
-The button opens PleatView in HACS on your own Home Assistant. Install it, then restart
-Home Assistant. Without HACS, copy `custom_components/pleatview` into your
-`config/custom_components/` folder. Requires Home Assistant 2025.1 or newer; tested with
-2026.10.
+The button opens PleatView on your own Home Assistant: in the built-in *Marketplace* on
+Home Assistant 2026.11 and later, in HACS on older versions. Install it, then restart
+Home Assistant. Until PleatView is in the Marketplace catalogue, the Marketplace asks you
+to connect a GitHub account once before it adds PleatView from GitHub. Without either,
+copy `custom_components/pleatview` into your `config/custom_components/` folder.
+Requires Home Assistant 2025.1 or newer.
 
 ### 3. Pair
 
@@ -108,6 +114,24 @@ in the Home Assistant URL and a long-lived access token. Dashboards work this wa
 casting and notifications need the integration.
 
 </details>
+
+## Tested on
+
+Every release runs `tools/e2e/run.py` on a TV against a real Home Assistant: pairing,
+dashboards, kiosk mode, notifications, video, cameras, Webpage dashboards, sign-ins,
+standby, a Home Assistant restart and an update in place. Results from 29 October 2026:
+
+| TV | Result |
+| --- | --- |
+| Google TV, Android TV 16 (emulator) | All 13 checks pass |
+| Fire TV Stick 3rd gen, Fire OS 7.7 (Android 9) | All checks pass (the restart check is skipped on a shared Home Assistant). Animated pictures show their first frame before Android 10. Soak test running |
+| Chromecast with Google TV (HD) | Testing from 30 October |
+
+| Home Assistant | Result |
+| --- | --- |
+| 2026.11 beta, 2026.11 nightly | 13 of 13 |
+| 2026.10 (current release) | 13 of 13 |
+| 2025.1 (oldest supported) | 13 of 13 |
 
 ## Using it from Home Assistant
 

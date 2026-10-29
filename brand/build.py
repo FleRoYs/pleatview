@@ -4,7 +4,7 @@ Run tools/build-brand.sh. It writes:
 
     brand/*.svg                                       the sources, with the wordmark as outlines
     android/app/src/main/res/drawable-*/              launcher icon foreground and TV banner
-    site/favicon.svg, site/img/                       website icon, Apple touch icon, Play Store images
+    site/favicon.svg, site/img/                       website icon and logo, Apple touch icon, Play Store images
     custom_components/pleatview/brand/                Home Assistant (and its Marketplace)
 """
 
@@ -152,6 +152,8 @@ def main() -> None:
 
     # Website.
     write("site/favicon.svg", icon)
+    body, width = lockup(0, 0, 200, WHITE)
+    write("site/img/logo.svg", document(round(width, 1), 200, body))
     render("site/img/pleatview-icon-512.png", icon, 512, 512)
     full_bleed = document(180, 180, MARK, "-24 -24 560 560", background=INK)  # iOS rounds the corners itself
     render("site/img/apple-touch-icon.png", full_bleed, 180, 180, opaque=True)
