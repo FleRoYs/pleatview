@@ -25,10 +25,12 @@ check passed. docs/test-plan.md lists what is covered.
 from __future__ import annotations
 
 import argparse
+import base64
 import functools
 import json
 import os
 import re
+import secrets
 import shutil
 import subprocess
 import sys
@@ -298,17 +300,82 @@ class Run:
                           else f"http://{EMULATOR_HOST}:{MEDIA_PORT}/e2e.mp4" if self.external
                           else f"http://{EMULATOR_HOST}:{HA_PORT}/local/e2e.mp4")
         # A web page on another origin than Home Assistant, shown as a Webpage dashboard.
-        self.page_url = f"http://{'127.0.0.1' if self.device else EMULATOR_HOST}:{MEDIA_PORT}/e2e.html"
+        self.site = f"http://{'127.0.0.1' if self.device else EMULATOR_HOST}:{MEDIA_PORT}"
+        self.page_url = f"{self.site}/e2e.html"
         self.entry_id = ""
         self.media_server: ThreadingHTTPServer | None = None
 
 
+# The test site's sign-in, for its pages behind a password prompt and a login form.
+SITE_USER, SITE_PASSWORD = "pleatview", "e2e-only-password"
+LOGIN_FORM = """<!doctype html><html><head><title>Sign in</title></head><body style="font:32px sans-serif;margin:64px">
+<form method="post" action="/form/login"><p>Test site sign-in</p>
+<input name="username" autocomplete="username"><br><input name="password" type="password"><br>
+<button type="submit">Sign in</button></form></body></html>
+"""
+
+
 class QuietFiles(SimpleHTTPRequestHandler):
+    """The test video and page, plus pages behind a password prompt and a login form."""
+
     def log_message(self, format, *args) -> None:  # noqa: A002 - signature from the base class
         pass
 
+    def do_GET(self) -> None:  # noqa: N802 - name from the base class
+        site: QuietServer = self.server
+        if self.path.startswith("/prompt/"):
+            expected = "Basic " + base64.b64encode(f"{SITE_USER}:{SITE_PASSWORD}".encode()).decode()
+            if self.headers.get("Authorization") != expected:
+                self.send_response(401)
+                self.send_header("WWW-Authenticate", 'Basic realm="PleatView E2E"')
+                self.send_header("Content-Length", "0")
+                self.end_headers()
+                return
+            site.events.append("prompt ok")
+            return self._page("<p>Signed in through a password prompt</p>")
+        if self.path.startswith("/form/"):
+            # A session works once, so the next visit has to sign in again.
+            cookie = re.search(r"e2e_session=(\w+)", self.headers.get("Cookie", ""))
+            if cookie and cookie.group(1) in site.sessions:
+                site.sessions.discard(cookie.group(1))
+                site.events.append("form ok")
+                return self._page("<p>Signed in with a form</p>")
+            return self._page(LOGIN_FORM, raw=True)
+        return super().do_GET()
+
+    def do_POST(self) -> None:  # noqa: N802 - name from the base class
+        site: QuietServer = self.server
+        length = int(self.headers.get("Content-Length") or 0)
+        fields = urllib.parse.parse_qs(self.rfile.read(length).decode())
+        if self.path == "/form/login" and fields.get("username") == [SITE_USER] and fields.get("password") == [SITE_PASSWORD]:
+            session = secrets.token_hex(8)
+            site.sessions.add(session)
+            site.events.append("form login")
+            self.send_response(303)
+            self.send_header("Location", "/form/")
+            self.send_header("Set-Cookie", f"e2e_session={session}; Path=/form")
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
+        site.events.append("form rejected")
+        self._page(LOGIN_FORM, raw=True)
+
+    def _page(self, body: str, raw: bool = False) -> None:
+        html = body if raw else f'<!doctype html><html><body style="font:40px sans-serif;margin:64px">{body}</body></html>'
+        data = html.encode()
+        self.send_response(200)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
+
 
 class QuietServer(ThreadingHTTPServer):
+    def __init__(self, address, handler) -> None:
+        super().__init__(address, handler)
+        self.events: list[str] = []  # what the test site saw: "prompt ok", "form login", …
+        self.sessions: set[str] = set()
+
     def handle_error(self, request, client_address) -> None:
         # The player hangs up mid-file when a video stops.
         if not isinstance(sys.exc_info()[1], ConnectionError):
@@ -454,6 +521,14 @@ def checks(r: Run, report: Report, apk: Path) -> None:
         return f"PIN and QR code shown ({code.split('#')[0]})"
 
     def pairing():
+        # A TV that was set up before (a real one keeps its ID across reinstalls) would abort
+        # with "already_configured". The run has just reinstalled the app, so that entry is dead.
+        tv_id = http("GET", f"{r.tv_api}/api/info")[1].get("id")
+        for device in ws_call(r, {"type": "config/device_registry/list"}).get("result") or []:
+            if ["pleatview", tv_id] in device.get("identifiers", []):
+                for entry_id in device.get("config_entries", []):
+                    print(f"  Removing this TV's earlier Home Assistant entry ({entry_id[:8]}…)", flush=True)
+                    ha.api("DELETE", f"/api/config/config_entries/entry/{entry_id}")
         _, flow = ha.api("POST", "/api/config/config_entries/flow", {"handler": "pleatview"})
         if not isinstance(flow, dict) or "flow_id" not in flow:
             raise AssertionError(f"couldn't start the PleatView setup: {str(flow)[:200]}")
@@ -575,6 +650,67 @@ def checks(r: Run, report: Report, apk: Path) -> None:
             ha.call("pleatview", "home", {"entity_id": entity["id"]})
         return f"{r.page_url} opened directly"
 
+    def sign_ins():
+        site = r.media_server
+        created = ws_call(r, {"type": "lovelace/dashboards/create", "url_path": "dashboard-pleatview-signin",
+                              "title": "E2E sign-in", "mode": "storage", "show_in_sidebar": True})
+        if not created.get("success"):
+            raise AssertionError(f"couldn't create a Webpage dashboard: {created}")
+        show = {"entity_id": entity["id"], "path": "/dashboard-pleatview-signin"}
+
+        def use(url: str) -> None:
+            ws_call(r, {"type": "lovelace/config/save", "url_path": "dashboard-pleatview-signin",
+                        "config": {"strategy": {"type": "iframe", "url": url}}})
+            time.sleep(2)  # Home Assistant tells the integration about the change
+
+        def sign_in_from_a_phone(confirmation: str, screenshot: str) -> None:
+            wait_for("the TV to ask for a sign-in",
+                     lambda: state()["attributes"].get("sign_in_needed") == "E2E sign-in", timeout=45)
+            report.screenshot(screenshot)
+            # What a phone does after scanning the code on the card.
+            code = wait_for("the sign-in code", lambda: screen_attribute("signin_qr", "content-desc"), timeout=15)
+            pin = re.search(r"pin=(\d{6})", code).group(1)
+            status, reply = http("POST", f"{r.tv_api}/api/signin",
+                                 {"pin": pin, "username": SITE_USER, "password": SITE_PASSWORD, "remember": True})
+            if status != 200:
+                raise AssertionError(f"signing in from the phone page failed: {status} {reply}")
+            wait_for(f"the test site to see '{confirmation}'", lambda: confirmation in site.events, timeout=45)
+            wait_for("the sign-in card to close", lambda: state()["attributes"].get("sign_in_needed") is None, timeout=20)
+
+        def signs_in_by_itself(confirmation: str) -> None:
+            deadline = time.monotonic() + 45
+            while confirmation not in site.events:
+                if state()["attributes"].get("sign_in_needed"):
+                    raise AssertionError(f"the TV asked again instead of using the saved sign-in ('{confirmation}')")
+                if time.monotonic() > deadline:
+                    raise TimeoutError(f"timed out waiting for the test site to see '{confirmation}'")
+                time.sleep(1)
+
+        try:
+            # A password prompt. After a restart, nothing is left in memory: the saved sign-in answers.
+            use(f"{r.site}/prompt/")
+            ha.call("pleatview", "show_dashboard", show)
+            sign_in_from_a_phone("prompt ok", "08-sign-in-prompt")
+            site.events.clear()
+            adb("shell", "am", "force-stop", PACKAGE)
+            adb("shell", "am", "start", "-n", f"{PACKAGE}/.MainActivity")
+            wait_for("the TV after a restart", ready, timeout=120)
+            ha.call("pleatview", "show_dashboard", show)
+            signs_in_by_itself("prompt ok")
+
+            # A login form whose session works once: reloading needs the saved sign-in.
+            use(f"{r.site}/form/")
+            ha.call("pleatview", "show_dashboard", show)
+            sign_in_from_a_phone("form ok", "09-sign-in-form")
+            site.events.clear()
+            ha.call("pleatview", "reload", {"entity_id": entity["id"]})
+            signs_in_by_itself("form ok")
+        finally:
+            ws_call(r, {"type": "lovelace/dashboards/delete", "dashboard_id": created["result"]["id"]})
+            ha.call("pleatview", "forget_sign_ins", {"entity_id": entity["id"]})
+            ha.call("pleatview", "home", {"entity_id": entity["id"]})
+        return "a password prompt and a login form, from the phone code, then from the saved sign-in"
+
     def standby():
         ha.call("media_player", "turn_off", {"entity_id": entity["id"]})
         wait_for("standby", lambda: state()["state"] == "off", timeout=20)
@@ -606,6 +742,7 @@ def checks(r: Run, report: Report, apk: Path) -> None:
         ("Camera without a stream shows as picture-in-picture", camera),
         ("show_dashboard and home switch dashboards", dashboards),
         ("Webpage dashboard opens the site directly", webpage),
+        ("Sign-ins: entered from a phone, then saved", sign_ins),
         ("turn_off and turn_on", standby),
         ("Recovers after a Home Assistant restart", ha_restart),
         ("Update in place keeps the pairing", update_in_place),

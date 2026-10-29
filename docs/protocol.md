@@ -16,6 +16,9 @@ Each request uses its own connection (`Connection: close`). Request bodies need 
 | `POST /api/pair` | none | `{"pin": "123456", "client": "Home Assistant"}` → `{"token": "…"}` |
 | `POST /api/unpair` | bearer | Revokes the calling token |
 | `GET /` | none | Phone setup page (it pairs with the PIN itself) |
+| `POST /api/signin` | bearer or PIN | Username and password for the page waiting for one (see [Sign-ins](#sign-ins)) |
+| `GET /api/signins` | bearer | `{"sign_ins": [{"kind": "form", "site": "…", "username": "…"}]}`, never passwords |
+| `DELETE /api/signins` | bearer | `{"site": "…"}` forgets that site's sign-ins, `{}` all → `{"forgotten": 2}` |
 
 The 6-digit PIN is shown on the TV's setup screen and in its menu (press Back on
 the home dashboard). It changes after every successful pairing. Wrong PINs return
@@ -58,6 +61,7 @@ Events stream that sends the full snapshot on connect and after every change
   "muted": false,
   "config_rev": "3f9a…",
   "overlay_permission": false,
+  "sign_in": null,
   "app_version": "0.1.0"
 }
 ```
@@ -69,6 +73,9 @@ Events stream that sends the full snapshot on connect and after every change
 - `media.state`: `playing`, `paused` or `buffering`; `duration` is null for live streams.
 - `overlay_permission`: whether the app may draw over other apps / start itself
   from the background.
+- `sign_in`: null, or the page waiting for a username and password:
+  `{"kind": "prompt" | "form", "title": "Grafana", "site": "http://grafana.lan:3000", "failed": false}`.
+  `title` is the dashboard's name; `failed` means the last sign-in for it was rejected.
 
 ## Commands
 
@@ -91,6 +98,7 @@ background, if Android allows it (see `overlay_permission`).
 | `reload` | — reload the dashboard page |
 | `next_dashboard`, `previous_dashboard` | — cycle through configured dashboards |
 | `turn_on`, `turn_off` | — leave / enter standby (black screen, screen may sleep) |
+| `forget_sign_ins` | `site`? — forget the saved sign-ins for one site, or all |
 
 Layout parameters: `mode` (`fullscreen`, `pip`, or `background` for audio),
 `position` (`top-left`, `top-right`, `bottom-left`, `bottom-right`, `center`),
@@ -101,6 +109,28 @@ the background with a now-playing card, video full screen, and images or
 `multipart/x-mixed-replace` (MJPEG) are shown like `show_image`. HLS, DASH, RTSP and
 progressive files are played by ExoPlayer. `announce: true` plays the clip over
 whatever is playing, which is ducked meanwhile.
+
+## Sign-ins
+
+Dashboards that aren't Home Assistant can ask for a username and password, as a
+browser password prompt (HTTP basic auth, identified by host and realm) or as a
+login form (identified by the page's origin). The TV answers with a sign-in saved
+for exactly that site. Without one, or when the site rejects it, it reports
+`sign_in` in its state and shows a card with a QR code. The code opens the phone page
+at `#signin=<title>&pin=<PIN>`, and the phone sends:
+
+```json
+POST /api/signin
+{"pin": "123456", "username": "kiosk", "password": "…", "remember": true}
+```
+
+A bearer token works instead of `pin`. The PIN is used up like a pairing (it changes
+afterwards, with the same lockout), but no token is issued. Replies: `200`, `400` without a
+password, `403 invalid_pin`, `409 no_sign_in_pending`, `429 too_many_attempts`.
+
+A sign-in is saved only once the site accepts it, and only if `remember` is true.
+Saved sign-ins stay on the TV, encrypted with a key in the Android keystore, and are
+never sent to Home Assistant.
 
 ## Configuration
 

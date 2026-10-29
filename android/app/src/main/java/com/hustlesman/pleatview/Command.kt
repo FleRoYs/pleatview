@@ -58,6 +58,9 @@ sealed class Command {
 
     object TurnOff : Command()
     object Reload : Command()
+
+    /** Forgets the sign-ins saved for [site], or all of them. */
+    data class ForgetSignIns(val site: String?) : Command()
     object Play : Command()
     object Pause : Command()
     object Stop : Command()
@@ -100,6 +103,7 @@ sealed class Command {
                 "mute" -> Mute(boolean(json, "muted"))
                 "home" -> Home
                 "reload" -> Reload
+                "forget_sign_ins" -> ForgetSignIns(json.optString("site").trim().ifEmpty { null })
                 "play" -> Play
                 "pause" -> Pause
                 "stop" -> Stop

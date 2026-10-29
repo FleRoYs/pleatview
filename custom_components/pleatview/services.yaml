@@ -128,3 +128,14 @@ reload:
     entity:
       integration: pleatview
       domain: media_player
+
+forget_sign_ins:
+  target:
+    entity:
+      integration: pleatview
+      domain: media_player
+  fields:
+    site:
+      example: https://grafana.example.com
+      selector:
+        text:

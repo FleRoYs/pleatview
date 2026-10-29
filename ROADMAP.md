@@ -151,6 +151,8 @@ requires.
 - [ ] P1 bugs fixed within 48 hours; a beta build every week
 - [ ] Device compatibility table on the website, filled from tester reports
 - [ ] One-press pairing: approve Home Assistant on the TV with OK, instead of typing the PIN
+- [x] Sign-ins for dashboards behind a login form or a password prompt: entered from a phone
+      code, saved encrypted on the TV only, used again by themselves
 - [ ] **In Home Assistant's Marketplace.** Home Assistant 2026.11 builds HACS in as
       *Settings → Marketplace*, which lists the HACS default repositories (checked in the
       2026.11 nightly; our "Open in HACS" links keep working). Get into the HACS default

@@ -1,5 +1,6 @@
 package com.hustlesman.pleatview
 
+import org.json.JSONArray
 import org.json.JSONException
 import org.json.JSONObject
 import java.io.OutputStream
@@ -23,6 +24,11 @@ class Api(
 
         /** @throws IllegalArgumentException for invalid values. */
         fun updateConfig(update: JSONObject): Config
+
+        /** Passes a username and password to the page waiting for one; false when none is. */
+        fun submitSignIn(username: String, password: String, remember: Boolean): Boolean
+        fun signIns(): JSONArray
+        fun forgetSignIns(site: String?): Int
     }
 
     private val openStreams = AtomicInteger()
@@ -33,6 +39,8 @@ class Api(
             "/", "/setup" -> get(request) { HttpResponse.html(setupPage()) }
             "/api/info" -> get(request) { HttpResponse.json(200, backend.info().put("paired", pairing.isPaired)) }
             "/api/pair" -> post(request) { pair(request) }
+            // The phone that scanned the TV's sign-in code has its PIN instead of a token.
+            "/api/signin" -> post(request) { signIn(request) }
             else -> {
                 if (!path.startsWith("/api/")) return HttpResponse.error(404, "not found")
                 if (!pairing.isValid(request.bearerToken())) return HttpResponse.error(401, "unauthorized")
@@ -43,6 +51,14 @@ class Api(
                     "/api/config" -> when (request.method) {
                         "GET", "HEAD" -> HttpResponse.json(200, backend.config().toJson())
                         "POST" -> updateConfig(request)
+                        else -> HttpResponse.error(405, "method not allowed")
+                    }
+                    "/api/signins" -> when (request.method) {
+                        "GET", "HEAD" -> HttpResponse.json(200, JSONObject().put("sign_ins", backend.signIns()))
+                        "DELETE" -> {
+                            val site = request.jsonBody().optString("site").trim().ifEmpty { null }
+                            HttpResponse.json(200, JSONObject().put("forgotten", backend.forgetSignIns(site)))
+                        }
                         else -> HttpResponse.error(405, "method not allowed")
                     }
                     "/api/unpair" -> post(request) {
@@ -61,10 +77,27 @@ class Api(
         if (pin.isBlank()) return HttpResponse.error(400, "'pin' is required")
         return when (val result = pairing.pair(pin, body.optString("client", "client"))) {
             is Pairing.Result.Paired -> HttpResponse.json(200, JSONObject().put("token", result.token))
+            Pairing.Result.Verified -> HttpResponse.error(500, "unexpected pairing result")
             Pairing.Result.InvalidPin -> HttpResponse.error(403, "invalid_pin")
             is Pairing.Result.LockedOut ->
                 HttpResponse.error(429, "too_many_attempts", mapOf("retry_after" to result.retryAfterSeconds))
         }
+    }
+
+    private fun signIn(request: HttpRequest): HttpResponse {
+        val body = request.jsonBody()
+        if (!pairing.isValid(request.bearerToken())) {
+            when (val result = pairing.verify(body.optString("pin"))) {
+                Pairing.Result.Verified -> Unit
+                is Pairing.Result.LockedOut ->
+                    return HttpResponse.error(429, "too_many_attempts", mapOf("retry_after" to result.retryAfterSeconds))
+                else -> return HttpResponse.error(403, "invalid_pin")
+            }
+        }
+        val password = body.optString("password")
+        if (password.isEmpty()) return HttpResponse.error(400, "'password' is required")
+        val accepted = backend.submitSignIn(body.optString("username").trim(), password, body.optBoolean("remember", true))
+        return if (accepted) ok() else HttpResponse.error(409, "no_sign_in_pending")
     }
 
     private fun command(request: HttpRequest): HttpResponse {

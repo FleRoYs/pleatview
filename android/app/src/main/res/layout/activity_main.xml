@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Layers, bottom to top: dashboard, media, web/image overlay, now-playing bar,
-     notifications, status banner, setup screen, menu, standby curtain. -->
+     notifications, status banner, sign-in card, setup screen, menu, standby curtain. -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:id="@+id/root"
@@ -111,6 +111,13 @@
         android:paddingBottom="12dp"
         android:textColor="@color/text_primary"
         android:textSize="16sp"
+        android:visibility="gone" />
+
+    <include
+        android:id="@+id/signin_card"
+        layout="@layout/view_signin"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
         android:visibility="gone" />
 
     <include

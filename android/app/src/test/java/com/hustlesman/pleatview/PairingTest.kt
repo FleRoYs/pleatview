@@ -55,4 +55,14 @@ class PairingTest {
         pairing.revokeAll()
         assertFalse(pairing.isValid(b))
     }
+
+    @Test
+    fun `verifying the pin uses it up without pairing a client`() {
+        val pairing = pairing()
+        val pin = pairing.pin
+        assertEquals(Pairing.Result.Verified, pairing.verify(pin))
+        assertNotEquals(pin, pairing.pin)
+        assertFalse(pairing.isPaired)
+        assertEquals(Pairing.Result.InvalidPin, pairing.verify(pin))
+    }
 }

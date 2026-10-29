@@ -21,6 +21,7 @@ class Pairing(
 
     sealed interface Result {
         data class Paired(val token: String) : Result
+        object Verified : Result
         object InvalidPin : Result
         data class LockedOut(val retryAfterSeconds: Int) : Result
     }
@@ -55,6 +56,25 @@ class Pairing(
 
     @Synchronized
     fun pair(candidate: String, client: String): Result {
+        checkPin(candidate)?.let { return it }
+        val token = newToken()
+        records += Record(sha256(token), client.trim().take(64).ifEmpty { "client" }, clock())
+        while (records.size > MAX_TOKENS) records.removeAt(0)
+        persist()
+        rotatePin()
+        return Result.Paired(token)
+    }
+
+    /** Uses up the PIN for a one-off action, such as signing in to a site, without pairing a client. */
+    @Synchronized
+    fun verify(candidate: String): Result {
+        checkPin(candidate)?.let { return it }
+        rotatePin()
+        return Result.Verified
+    }
+
+    /** null when [candidate] is the PIN. Wrong PINs count towards a lockout, which also changes the PIN. */
+    private fun checkPin(candidate: String): Result? {
         val now = clock()
         if (now < lockedUntil) return Result.LockedOut(((lockedUntil - now + 999) / 1000).toInt())
         val digits = candidate.filter(Char::isDigit)
@@ -68,12 +88,7 @@ class Pairing(
             return Result.InvalidPin
         }
         failures = 0
-        val token = newToken()
-        records += Record(sha256(token), client.trim().take(64).ifEmpty { "client" }, now)
-        while (records.size > MAX_TOKENS) records.removeAt(0)
-        persist()
-        rotatePin()
-        return Result.Paired(token)
+        return null
     }
 
     @Synchronized
