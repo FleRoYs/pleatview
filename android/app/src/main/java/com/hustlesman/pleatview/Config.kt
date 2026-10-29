@@ -23,6 +23,7 @@ data class Config(
     val reloadMinutes: Int = 0,
     val rotateSeconds: Int = 0,
     val returnHomeMinutes: Int = 0,
+    val reopenMinutes: Int = 10,
     val rev: String = "",
 ) {
     val isConfigured: Boolean get() = haUrl.isNotEmpty()
@@ -60,6 +61,7 @@ data class Config(
         put("reload_minutes", reloadMinutes)
         put("rotate_seconds", rotateSeconds)
         put("return_home_minutes", returnHomeMinutes)
+        put("reopen_minutes", reopenMinutes)
         put("rev", rev)
     }
 
@@ -88,6 +90,7 @@ data class Config(
                 "reload_minutes" -> c.copy(reloadMinutes = intIn(update, key, 0, 7 * 24 * 60))
                 "rotate_seconds" -> c.copy(rotateSeconds = intIn(update, key, 0, 24 * 60 * 60))
                 "return_home_minutes" -> c.copy(returnHomeMinutes = intIn(update, key, 0, 24 * 60))
+                "reopen_minutes" -> c.copy(reopenMinutes = intIn(update, key, 0, 24 * 60))
                 "rev" -> c.copy(rev = update.getString(key).take(64))
                 "ha_token_set" -> c // read-only, echoed back by clients that round-trip GET /api/config
                 else -> if (strict) throw IllegalArgumentException("unknown config key: $key") else c

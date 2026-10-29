@@ -16,6 +16,13 @@ class ConfigTest {
         assertEquals("", Config.normalizeBaseUrl("  "))
     }
 
+    @Test
+    fun `reopen minutes default to ten and can be turned off`() {
+        assertEquals(10, Config().reopenMinutes)
+        assertEquals(0, Config().merge(JSONObject().put("reopen_minutes", 0)).reopenMinutes)
+        assertEquals(10, Config.fromJson(Config().toJson(includeSecrets = true)).reopenMinutes)
+    }
+
     @Test(expected = IllegalArgumentException::class)
     fun `non http base url is rejected`() {
         Config.normalizeBaseUrl("ftp://ha.local")

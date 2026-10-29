@@ -24,6 +24,7 @@ CONF_KIOSK: Final = "kiosk"
 CONF_ZOOM: Final = "zoom"
 CONF_ROTATE_SECONDS: Final = "rotate_seconds"
 CONF_RETURN_HOME_MINUTES: Final = "return_home_minutes"
+CONF_REOPEN_MINUTES: Final = "reopen_minutes"
 CONF_RELOAD_MINUTES: Final = "reload_minutes"
 CONF_KEEP_SCREEN_ON: Final = "keep_screen_on"
 CONF_LAUNCH_ON_BOOT: Final = "launch_on_boot"
@@ -35,6 +36,7 @@ DEFAULT_OPTIONS: Final = {
     CONF_ZOOM: 100,
     CONF_ROTATE_SECONDS: 0,
     CONF_RETURN_HOME_MINUTES: 0,
+    CONF_REOPEN_MINUTES: 10,
     CONF_RELOAD_MINUTES: 0,
     CONF_KEEP_SCREEN_ON: True,
     CONF_LAUNCH_ON_BOOT: True,

@@ -748,6 +748,34 @@ def checks(r: Run, report: Report, apk: Path) -> None:
             settle()
             ha.call("pleatview", "home", {"entity_id": entity["id"]})
 
+    def comes_back():
+        # Someone presses Home and forgets PleatView: with nothing playing sound, it comes back
+        # after reopen_minutes. (A settings side panel doesn't count: PleatView stays visible.)
+        # Android 10+ needs "Display over other apps".
+        def resumed() -> str:
+            return adb("shell", "dumpsys activity activities | grep -E 'ResumedActivity'", check=False).strip()
+
+        adb("shell", "appops", "set", PACKAGE, "SYSTEM_ALERT_WINDOW", "allow")
+        set_options(ha, r.entry_id, {"reopen_minutes": 1})
+        try:
+            time.sleep(8)  # new options reload the integration, which sends the TV its settings again
+            wait_for("the TV after its new settings", ready, timeout=60)
+            adb("shell", "input", "keyevent", "KEYCODE_HOME")
+            wait_for("the home screen in front", lambda: PACKAGE not in resumed(), timeout=20)
+            left = time.time()
+            try:
+                wait_for("PleatView to come back", lambda: PACKAGE in resumed(), timeout=150, interval=5)
+            except TimeoutError as err:
+                sound = adb("shell", "dumpsys audio | grep -iE 'state:started|isMusicActive'", check=False).strip()
+                raise AssertionError(f"{err}; in front: {resumed()[:160]}; playing: {sound[:200] or 'nothing'}") from None
+            return f"back after {time.time() - left:.0f} s on the home screen"
+        finally:
+            if PACKAGE not in resumed():
+                adb("shell", "am", "start", "-n", f"{PACKAGE}/.MainActivity")
+            set_options(ha, r.entry_id, {"reopen_minutes": 10})
+            time.sleep(8)
+            wait_for("the TV after its new settings", ready, timeout=60)
+
     def webpage():
         # Home Assistant would show the site in a frame, where many sites refuse to load or
         # lose their cookies; PleatView opens the site itself.
@@ -960,6 +988,7 @@ def checks(r: Run, report: Report, apk: Path) -> None:
         ("Camera without a stream shows as picture-in-picture", camera),
         ("show_dashboard and home switch dashboards", dashboards),
         ("Rotation keeps a dashboard Home Assistant showed", rotation_waits),
+        ("Comes back from another app", comes_back),
         ("Webpage dashboard opens the site directly", webpage),
         ("Sign-ins: entered from a phone, then saved", sign_ins),
         ("turn_off and turn_on", standby),

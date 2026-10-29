@@ -246,6 +246,7 @@ the TV.
 | Zoom | 100 % | Lower values fit more on a TV (75 % gives a 1280 px wide layout on 1080p). Applies to Webpage dashboards too |
 | Rotate dashboards | off | Cycle the list while nobody uses the remote |
 | Return home after idle | off | After someone browses with the remote |
+| Come back from other apps after | 10 minutes | When someone left PleatView for another app and nothing has played sound for that long. 0 never comes back. Needs the overlay permission on Android 10+ |
 | Reload every | off | Full page reload, a safety net for very long uptimes |
 | Keep the screen on | on | Prevents the screensaver / ambient mode while a dashboard shows |
 | Open when the TV starts | on | Needs the overlay permission |

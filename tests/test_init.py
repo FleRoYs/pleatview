@@ -31,6 +31,7 @@ async def test_setup_pushes_config(hass: HomeAssistant, fake_tv: FakeTV) -> None
         {"title": "Cameras", "path": "/dashboard-cams"},
     ]
     assert "ha_token" not in fake_tv.config  # auth mode "none" leaves sign-in to the TV
+    assert fake_tv.config["reopen_minutes"] == 10  # back from other apps after 10 quiet minutes
     assert fake_tv.config["rev"]
     assert hass.states.get("media_player.living_room_tv").state == "idle"
     assert hass.states.get("notify.living_room_tv") is not None

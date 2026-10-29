@@ -3,6 +3,7 @@ package com.hustlesman.pleatview
 import android.app.Application
 import android.content.Context
 import android.content.Intent
+import android.media.AudioManager
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
@@ -51,6 +52,17 @@ class Hub(
 
     var display: Display? = null
 
+    /** When PleatView left the screen, 0 while it's on screen. Counts from the app's start. */
+    private var hiddenSince = SystemClock.elapsedRealtime()
+    private var everShown = false
+    private var lastSound = 0L
+    private val reopenCheck = object : Runnable {
+        override fun run() {
+            checkReopen()
+            main.postDelayed(this, REOPEN_CHECK_MS)
+        }
+    }
+
     init {
         state.configRev = settings.config.rev
         stateJson = render()
@@ -61,6 +73,43 @@ class Hub(
             }
         }
         pairing.onChanged = { main.post { display?.onPairingChanged() } }
+        main.postDelayed(reopenCheck, REOPEN_CHECK_MS)
+    }
+
+    // ---- coming back from other apps ----
+
+    /** MainActivity is on screen. */
+    fun uiShown() {
+        hiddenSince = 0
+        everShown = true
+    }
+
+    /** MainActivity left the screen, usually for another app. */
+    fun uiHidden() {
+        hiddenSince = SystemClock.elapsedRealtime()
+    }
+
+    /**
+     * A wall display shouldn't stay behind an app someone forgot about. Android doesn't
+     * tell other apps about remote presses, so "nobody's watching" means no sound.
+     */
+    private fun checkReopen() {
+        val now = SystemClock.elapsedRealtime()
+        val audio = app.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        if (audio.isMusicActive) lastSound = now
+        val config = settings.config
+        val power = app.getSystemService(Context.POWER_SERVICE) as PowerManager
+        // Never open PleatView on its own if it hasn't been on screen yet and isn't meant to start with the TV.
+        val allowed = config.isConfigured && (everShown || config.launchOnBoot) && power.isInteractive
+        if (!Reopen.due(now, hiddenSince, lastSound, config.reopenMinutes, allowed)) return
+        // If Android refuses, wait a full period again rather than asking every check.
+        hiddenSince = now
+        if (!canOpenFromBackground()) {
+            Log.i(TAG, "Can't come back from other apps: needs \"Display over other apps\"")
+            return
+        }
+        Log.i(TAG, "Coming back after ${config.reopenMinutes} minutes in another app")
+        bringToFront()
     }
 
     // ---- Api.Backend (called from server threads) ----
@@ -183,6 +232,7 @@ class Hub(
         private const val MAX_PENDING = 10
         private const val PENDING_TTL_MS = 30_000L
         private const val PUBLISH_DELAY_MS = 50L
+        private const val REOPEN_CHECK_MS = 30_000L
     }
 }
 
