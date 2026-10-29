@@ -86,3 +86,24 @@ time:
 
 **Pass:** no manual intervention for 7 days, recovery from both events, and memory that grows
 by less than 20 % after the first day.
+
+`tools/soak/run.py` does steps 1 and 2 on a paired TV and adds a busy household: lights
+change every 2 minutes, a notification every 15 (text, camera snapshot, animated picture),
+and every hour a video and a camera pop-up; every 2 hours a Webpage dashboard, every 3 a
+password prompt (its sign-in card has to show, then go). It samples memory, the WebView
+renderer, the dashboard's JavaScript heap, threads, open files and CPU every minute, takes a
+screenshot every hour and keeps crashes, ANRs and renderer deaths from logcat. It runs its
+own adb server, so end-to-end runs on other TVs can happen meanwhile.
+
+```bash
+setsid nohup tools/soak/run.py --device <tv-ip> --entity media_player.<tv> \
+    --out tools/soak/out/<name> --video "media-source://media_source/local/<clip>.mp4" \
+    --gif "/media/local/<picture>.gif" --webpage /<webpage-dashboard> \
+    --sign-in-page https://the-internet.herokuapp.com/basic_auth >/dev/null 2>&1 &
+tools/soak/run.py --report tools/soak/out/<name>    # the summary so far
+tools/soak/run.py --restore tools/soak/out/<name>   # stop, put the options back, remove its dashboard
+```
+
+The report compares the first and the last hour of idle samples, shows the trend after the
+first hour in MB per hour, and ends in PASS when memory grew less than 20 % without crashes or
+restarts.
