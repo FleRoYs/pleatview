@@ -1,9 +1,13 @@
 package com.hustlesman.pleatview
 
 import android.content.Context
-import android.graphics.Bitmap
+import android.content.res.Resources
 import android.graphics.BitmapFactory
+import android.graphics.ImageDecoder
 import android.graphics.PixelFormat
+import android.graphics.drawable.Animatable
+import android.graphics.drawable.BitmapDrawable
+import android.graphics.drawable.Drawable
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
@@ -24,6 +28,7 @@ import java.net.HttpURLConnection
 import java.net.Inet4Address
 import java.net.NetworkInterface
 import java.net.URL
+import java.nio.ByteBuffer
 import java.util.concurrent.Executors
 
 /** Builds notification cards, used both inside the app and as system overlays. */
@@ -153,30 +158,42 @@ object Layouts {
     }
 }
 
-/** Minimal image loader for notification pictures and cover art. */
+/** Minimal image loader for notification pictures and cover art. GIFs animate on Android 10 and later. */
 object ImageLoader {
     private val executor = Executors.newFixedThreadPool(2)
     private val main = Handler(Looper.getMainLooper())
 
     fun load(url: String, target: ImageView, maxSize: Int) {
         target.tag = url
+        val resources = target.resources
         executor.execute {
-            val bitmap = try {
-                fetch(url, maxSize)
+            val image = try {
+                fetch(url, maxSize, resources)
             } catch (e: Exception) {
                 Log.w("PleatView", "Image load failed: ${e.message}")
                 null
             }
             main.post {
-                if (target.tag == url && bitmap != null) {
-                    target.setImageBitmap(bitmap)
+                if (target.tag == url && image != null) {
+                    (target.drawable as? Animatable)?.stop()
+                    target.setImageDrawable(image)
+                    if (image is Animatable) {
+                        image.start()
+                        target.addOnAttachStateChangeListener(object : View.OnAttachStateChangeListener {
+                            override fun onViewAttachedToWindow(view: View) = Unit
+                            override fun onViewDetachedFromWindow(view: View) {
+                                image.stop() // the notification closed
+                                view.removeOnAttachStateChangeListener(this)
+                            }
+                        })
+                    }
                     target.visibility = View.VISIBLE
                 }
             }
         }
     }
 
-    private fun fetch(url: String, maxSize: Int): Bitmap? {
+    private fun fetch(url: String, maxSize: Int, resources: Resources): Drawable? {
         val connection = URL(url).openConnection() as HttpURLConnection
         val bytes = try {
             connection.connectTimeout = 8_000
@@ -196,11 +213,24 @@ object ImageLoader {
         } finally {
             connection.disconnect()
         }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            // Animated GIF and WebP come back as an AnimatedImageDrawable. Android 9's animated
+            // decoder crashes natively on some GIFs (seen on Fire OS 7), so it gets the first frame.
+            return ImageDecoder.decodeDrawable(ImageDecoder.createSource(ByteBuffer.wrap(bytes))) { decoder, info, _ ->
+                decoder.setTargetSampleSize(sampleSize(info.size.width, info.size.height, maxSize))
+            }
+        }
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
         BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+        val options = BitmapFactory.Options().apply { inSampleSize = sampleSize(bounds.outWidth, bounds.outHeight, maxSize) }
+        val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options) ?: return null
+        return BitmapDrawable(resources, bitmap)
+    }
+
+    private fun sampleSize(width: Int, height: Int, maxSize: Int): Int {
         var sample = 1
-        while (bounds.outWidth / (sample * 2) >= maxSize || bounds.outHeight / (sample * 2) >= maxSize) sample *= 2
-        return BitmapFactory.decodeByteArray(bytes, 0, bytes.size, BitmapFactory.Options().apply { inSampleSize = sample })
+        while (width / (sample * 2) >= maxSize || height / (sample * 2) >= maxSize) sample *= 2
+        return sample
     }
 
     private const val MAX_BYTES = 15 * 1024 * 1024

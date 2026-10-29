@@ -19,6 +19,9 @@ class SignInFlow(
     private val onRequest: (SignInRequest?) -> Unit,
 ) {
     var config = Config()
+
+    /** The dashboard (path or URL) the TV was asked to show. */
+    var target: String? = null
     private var view: WebView? = null
 
     private var request: SignInRequest? = null
@@ -169,7 +172,7 @@ class SignInFlow(
     private fun rejected(sent: Attempt, origin: String) {
         trying = null
         if (sent.saved) rejected[origin] = SystemClock.elapsedRealtime()
-        show(SignInRequest(SignIn.Kind.FORM, origin, "", titleFor(origin), failed = true))
+        show(SignInRequest(SignIn.Kind.FORM, origin, "", titleFor(origin, view?.title), failed = true))
     }
 
     /** A login form with no sign-in on its way: use the saved one, or ask. */
@@ -179,7 +182,7 @@ class SignInFlow(
         if (saved != null && (rejectedAt == null || SystemClock.elapsedRealtime() - rejectedAt > REJECTED_PAUSE_MS)) {
             fill(saved, save = false, saved = true)
         } else if (dismissed != origin) {
-            show(SignInRequest(SignIn.Kind.FORM, origin, "", titleFor(origin), failed = saved != null))
+            show(SignInRequest(SignIn.Kind.FORM, origin, "", titleFor(origin, view?.title), failed = saved != null))
         }
     }
 
@@ -231,13 +234,18 @@ class SignInFlow(
         onRequest(next)
     }
 
-    /** The dashboard's name for a site, else Home Assistant's, else the host. */
-    private fun titleFor(site: String): String {
+    /**
+     * What to call a site on the TV and the phone: the name of a dashboard on it, else
+     * "Home Assistant", else the web-page dashboard that led there (a sign-in page on another
+     * site, such as single sign-on), else the site's own name from [pageTitle], else its host.
+     */
+    private fun titleFor(site: String, pageTitle: String? = null): String {
         val host = (if ("://" in site) Uri.parse(site).host else site.substringBefore(':')) ?: site
         config.dashboards.firstOrNull { Config.isHttpUrl(it.path) && Uri.parse(it.path).host.equals(host, ignoreCase = true) }
             ?.let { return it.title }
         if (config.haOrigin?.let { Uri.parse(it).host.equals(host, ignoreCase = true) } == true) return "Home Assistant"
-        return host
+        config.dashboards.firstOrNull { Config.isHttpUrl(it.path) && it.path == target }?.let { return it.title }
+        return SignIns.siteName(pageTitle) ?: host
     }
 
     private companion object {

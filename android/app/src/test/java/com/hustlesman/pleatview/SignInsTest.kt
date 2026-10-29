@@ -90,4 +90,18 @@ class SignInsTest {
         assertTrue(script.contains("location.origin !== origin"))
         assertTrue(script.contains("\"a\\\"b'c\\\\d\""))
     }
+
+    @Test
+    fun `a site's name comes from its page title`() {
+        assertEquals("Grafana", SignIns.siteName("Grafana"))
+        assertEquals("Proxmox Virtual Environment", SignIns.siteName("Login | Proxmox Virtual Environment"))
+        assertEquals("Gitea", SignIns.siteName("Sign in · Gitea"))
+        assertEquals("UniFi", SignIns.siteName("Sign in to UniFi"))
+        assertEquals("Portainer", SignIns.siteName("Portainer - Login"))
+        assertNull(SignIns.siteName("Login"))
+        assertNull(SignIns.siteName("Please sign in"))
+        assertNull(SignIns.siteName("http://192.168.1.5:3000/login"))
+        assertNull(SignIns.siteName(""))
+        assertNull(SignIns.siteName(null))
+    }
 }

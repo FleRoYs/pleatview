@@ -132,6 +132,7 @@ class DashboardController(
     /** Shows a dashboard path (or URL), in place when the HA frontend is already running. */
     fun navigate(target: String) {
         lastTarget = target
+        signInFlow.target = target
         val url = config.resolve(target)
         val view = webView ?: return
         if (ready && !failed && config.isHaUrl(url) && config.isHaUrl(view.url)) {

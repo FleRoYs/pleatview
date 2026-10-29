@@ -84,6 +84,8 @@ TEST_PAGE = """<!doctype html>
 <body style="background:#123;color:#fff;font:48px sans-serif;margin:64px">PleatView end-to-end web page</body></html>
 """
 
+TEST_GIF = ("ffmpeg -loglevel error -y -f lavfi -i testsrc2=duration=2:size=320x180:rate=10 -loop 0")
+
 TEST_VIDEO = ("ffmpeg -loglevel error -y -f lavfi -i testsrc2=duration=30:size=640x360:rate=25 "
               "-c:v libx264 -pix_fmt yuv420p -preset ultrafast")
 
@@ -387,6 +389,17 @@ def screen_texts() -> str:
     return adb("shell", "cat", "/sdcard/ui.xml", check=False)
 
 
+def frame(box: list[int], tools_image: str) -> bytes:
+    """The screen's pixels inside [left, top, right, bottom], as PNG bytes of that area."""
+    png = subprocess.run([*ADB_COMMAND, "exec-out", "screencap", "-p"], capture_output=True, check=False).stdout
+    # Home Assistant's image has Pillow; crop there rather than adding a dependency here.
+    return subprocess.run(["docker", "run", "--rm", "-i", "--entrypoint", "python3", tools_image, "-c",
+                           "import io, sys; from PIL import Image; "
+                           f"im = Image.open(io.BytesIO(sys.stdin.buffer.read())).crop(({box[0]}, {box[1]}, {box[2]}, {box[3]})); "
+                           "out = io.BytesIO(); im.convert('RGB').save(out, 'PNG'); sys.stdout.buffer.write(out.getvalue())"],
+                          input=png, capture_output=True, check=False).stdout
+
+
 def screen_attribute(view_id: str, attribute: str, texts: str | None = None) -> str:
     """An attribute of one of PleatView's views in the current UI dump."""
     for node in (texts if texts is not None else screen_texts()).split("<node"):
@@ -434,7 +447,7 @@ def start(r: Run, work: Path, apk: Path) -> None:
     media = work / "media"
     media.mkdir()
     run("docker", "run", "--rm", "--entrypoint", "sh", "-v", f"{media}:/out", r.tools_image, "-c",
-        f"{TEST_VIDEO} /out/e2e.mp4 && chmod a+r /out/e2e.mp4")
+        f"{TEST_VIDEO} /out/e2e.mp4 && {TEST_GIF} /out/e2e.gif && chmod a+r /out/e2e.mp4 /out/e2e.gif")
     (media / "e2e.html").write_text(TEST_PAGE)
     handler = functools.partial(QuietFiles, directory=str(media))
     r.media_server = QuietServer(("127.0.0.1", MEDIA_PORT), handler)
@@ -591,6 +604,23 @@ def checks(r: Run, report: Report, apk: Path) -> None:
         wait_for("the notification card", lambda: "Hello from the end-to-end test" in screen_texts(),
                  timeout=20, interval=1)
         report.screenshot("03-notification")
+        # An animated GIF: Android 9's animated decoder once crashed the app on it. From
+        # Android 10 the picture should move.
+        pid = adb("shell", "pidof", PACKAGE).strip()
+        ha.call("pleatview", "notify", {"entity_id": entity["id"], "message": "Animated picture",
+                                        "image": f"{r.site}/e2e.gif", "duration": 30})
+        bounds = wait_for("the notification picture", lambda: screen_attribute("toast_image", "bounds"), timeout=20)
+        box = [int(n) for n in re.findall(r"\d+", bounds)]
+        first = frame(box, r.tools_image)
+        time.sleep(1.5)
+        moving = frame(box, r.tools_image) != first
+        time.sleep(6)
+        if adb("shell", "pidof", PACKAGE).strip() != pid:
+            raise AssertionError("PleatView restarted while showing an animated picture")
+        animates = int(adb("shell", "getprop", "ro.build.version.sdk").strip()) >= 29
+        if animates and not moving:
+            raise AssertionError("the animated picture in the notification doesn't move")
+        return "animated picture moves" if moving else "animated picture shows its first frame (Android 9)"
 
     def video():
         ha.call("media_player", "play_media", {"entity_id": entity["id"], "media_content_type": "video",
