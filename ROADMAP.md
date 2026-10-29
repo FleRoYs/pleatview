@@ -32,7 +32,7 @@ Last updated 29 October 2026. **Current milestone: M1** (M0 finished early).
 | [M5](#m5--lg-and-samsung-apps) LG and Samsung apps submitted | Fri 5 Mar 2027 | M4, seller accounts, TVs | Not started |
 | [M6](#m6--on-every-store) On every store | Fri 2 Apr 2027 | M5 approvals, 30-day soak | Not started |
 
-Progress is tracked in [GitHub milestones](https://github.com/FleRoYs/pleatview/milestones).
+Progress is tracked in [GitHub milestones](https://github.com/Hustlesman/pleatview/milestones).
 Issues exist only for the current milestone and the long-lead tasks; each later milestone
 gets its issues when it starts.
 
@@ -77,7 +77,7 @@ These take days to weeks to come back, so they start now, alongside M0.
 
 *Fri 6 Nov 2026.* The project can be built, tested, released and found.
 
-- [x] Code on GitHub ([FleRoYs/pleatview](https://github.com/FleRoYs/pleatview)), MIT license
+- [x] Code on GitHub ([Hustlesman/pleatview](https://github.com/Hustlesman/pleatview)), MIT license
 - [x] App ID `com.hustlesman.pleatview`; integration manifest has documentation, issue tracker and code owner
 - [x] CI workflow: app tests, lint and build; integration tests; hassfest; HACS validation
 - [x] Website and privacy policy in `site/`, deployed by GitHub Pages
@@ -88,7 +88,7 @@ These take days to weeks to come back, so they start now, alongside M0.
 - [x] Setup ends at the PIN: a dedicated user by default, other sign-in methods under Reconfigure
 - [x] Release key in GitHub secrets; `tools/bump-version.sh` keeps app and integration versions in step
 - [x] `pleatview.hustlesman.com` live over HTTPS
-- [x] v0.1.1 tagged and published ([release](https://github.com/FleRoYs/pleatview/releases/tag/v0.1.1))
+- [x] v0.1.1 tagged and published ([release](https://github.com/Hustlesman/pleatview/releases/tag/v0.1.1))
 - [x] Long-lead tasks tracked as issues in the milestones that need them
 
 **Exit:** CI green on `main`, the site is live, and a signed v0.1.1 APK can be downloaded
@@ -160,8 +160,8 @@ requires.
       *Settings → Marketplace*, which lists the HACS default repositories (checked in the
       2026.11 nightly; our "Open in HACS" links keep working). Get into the HACS default
       list: brand images in `custom_components/pleatview/brand/` (done), validation green
-      with nothing ignored (done), the repository under a Hustlesman organization with a
-      verified domain, a release after that, then the owner's pull request to
+      with nothing ignored (done), the repository under the Hustlesman organization with
+      hustlesman.com verified (done 29 Oct), a release after that, then the owner's pull request to
       `hacs/default`. Until then the Marketplace asks 2026.11 users to connect GitHub once
       (checked in 2026.11.0b0). Then the install guide says Marketplace → PleatView, with
       HACS for older versions

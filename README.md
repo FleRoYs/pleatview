@@ -48,7 +48,7 @@ Amazon Appstore on Fire TV). Open it, enter **`pleatview.hustlesman.com/apk`** a
 choose *Install*. Android asks once to allow installs from Downloader.
 
 The link always serves the newest signed release from
-[GitHub Releases](https://github.com/FleRoYs/pleatview/releases). Google Play and Amazon
+[GitHub Releases](https://github.com/Hustlesman/pleatview/releases). Google Play and Amazon
 Appstore listings are on the [roadmap](ROADMAP.md). Android 7.0 or newer; see
 [Tested on](#tested-on) for the devices.
 
@@ -78,7 +78,7 @@ otherwise), show notifications over other apps, and open PleatView at boot.
 
 ### 2. Home Assistant integration
 
-[![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=FleRoYs&repository=pleatview&category=integration)
+[![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=Hustlesman&repository=pleatview&category=integration)
 
 The button opens PleatView on your own Home Assistant: in the built-in *Marketplace* on
 Home Assistant 2026.11 and later, in HACS on older versions. Install it, then restart
@@ -287,6 +287,11 @@ for a permanent display.
 - The API never returns the token. It is excluded from Android backups and device
   transfers, and is only exposed to pages from your Home Assistant address. Web pages
   opened with `show_url` never see it.
+- Every release is signed with the same key (SHA-256
+  `27:7B:CC:FA:72:E6:00:CE:D2:58:EF:9B:C4:DE:43:C6:FA:2F:27:53:8A:98:59:B2:C6:F2:EC:7C:34:3A:E3:73`,
+  also in the site's `/.well-known/assetlinks.json`), so only a genuine PleatView can
+  update yours. From 1.0.1, release files also carry a signed build attestation:
+  `gh attestation verify pleatview.apk --repo Hustlesman/pleatview`.
 
 ## Development
 
