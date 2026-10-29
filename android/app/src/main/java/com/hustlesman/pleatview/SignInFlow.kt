@@ -241,10 +241,13 @@ class SignInFlow(
      */
     private fun titleFor(site: String, pageTitle: String? = null): String {
         val host = (if ("://" in site) Uri.parse(site).host else site.substringBefore(':')) ?: site
-        config.dashboards.firstOrNull { Config.isHttpUrl(it.path) && Uri.parse(it.path).host.equals(host, ignoreCase = true) }
+        fun onHost(url: String) = Uri.parse(url).host.equals(host, ignoreCase = true)
+        // The dashboard being opened, then another one on that site: a password prompt only
+        // names its host, and add-ons often share Home Assistant's host on another port.
+        config.dashboards.firstOrNull { Config.isHttpUrl(it.path) && it.path == target && onHost(it.path) }
             ?.let { return it.title }
-        if (config.haOrigin?.let { Uri.parse(it).host.equals(host, ignoreCase = true) } == true) return "Home Assistant"
-        config.dashboards.firstOrNull { Config.isHttpUrl(it.path) && it.path == target }?.let { return it.title }
+        config.dashboards.firstOrNull { Config.isHttpUrl(it.path) && onHost(it.path) }?.let { return it.title }
+        if (config.haOrigin?.let { onHost(it) } == true) return "Home Assistant"
         return SignIns.siteName(pageTitle) ?: host
     }
 

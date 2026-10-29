@@ -159,10 +159,18 @@ class DashboardController(
         }
     }
 
-    /** Back inside the page (closes HA dialogs, undoes remote-control browsing). */
+    /**
+     * Back inside the page (closes HA dialogs, undoes remote-control browsing). It stays on
+     * the site on screen: going back into another dashboard's site would reopen it, password
+     * prompt and all (issue #31).
+     */
     fun goBack(): Boolean {
         val view = webView ?: return false
         if (!view.canGoBack()) return false
+        val history = view.copyBackForwardList()
+        val current = history.currentItem?.url ?: return false
+        val previous = history.getItemAtIndex(history.currentIndex - 1)?.url ?: return false
+        if (Config.originOf(current) == null || Config.originOf(current) != Config.originOf(previous)) return false
         view.goBack()
         return true
     }
@@ -539,8 +547,12 @@ class DashboardController(
         }
 
         override fun doUpdateVisitedHistory(view: WebView, url: String?, isReload: Boolean) {
+            if (view !== webView || url == BLANK) return
+            // A new dashboard starts a new history as soon as it's committed, so Back can't
+            // return to the previous one even before this one finishes loading.
+            if (clearHistoryOnLoad) view.clearHistory()
             // Single-page apps change routes without loading a page, for example to their login screen.
-            if (view === webView && url != BLANK) signInFlow.onPageShown(url, finished = false)
+            signInFlow.onPageShown(url, finished = false)
         }
 
         override fun onPageStarted(view: WebView, url: String?, favicon: Bitmap?) {

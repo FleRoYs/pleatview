@@ -174,6 +174,9 @@ class MainActivity : Activity(), Hub.Display, DashboardController.Callbacks, Med
                 dashboard.navigate(command.path)
                 main.removeCallbacks(revertRunnable)
                 command.duration?.let { main.postDelayed(revertRunnable, it * 1000L) }
+                // Home Assistant chose this dashboard: rotation waits until a timed one has
+                // gone back, then a full period (issue #32).
+                restartRotation(afterMs = (command.duration ?: 0) * 1000L)
             }
             is Command.ShowWeb -> {
                 if (command.layout.mode == Command.Mode.FULLSCREEN && media.isFullscreen) media.stop()
@@ -314,8 +317,13 @@ class MainActivity : Activity(), Hub.Display, DashboardController.Callbacks, Med
             }
         }
         applyKeepScreenOn()
+        restartRotation(seconds = new.rotateSeconds)
+    }
+
+    /** The next rotation step comes a full period from now, plus [afterMs]. */
+    private fun restartRotation(afterMs: Long = 0, seconds: Int = config.rotateSeconds) {
         main.removeCallbacks(rotateRunnable)
-        if (new.rotateSeconds > 0) main.postDelayed(rotateRunnable, new.rotateSeconds * 1000L)
+        if (seconds > 0) main.postDelayed(rotateRunnable, afterMs + seconds * 1000L)
     }
 
     private fun showSetup(show: Boolean) {

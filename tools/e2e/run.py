@@ -8,6 +8,8 @@ also runs in Docker, listening only on 127.0.0.1.
     tools/e2e/run.py --ha-version 2025.1.4   # any Home Assistant image tag (beta, dev, ...)
     tools/e2e/run.py --apk path/to/app.apk   # test a specific APK (release builds skip the DevTools check)
     tools/e2e/run.py --keep                  # leave the containers running afterwards
+    tools/e2e/run.py --screens clip.mp4      # then take the website and store pictures (out/<time>/screens),
+                                             # with clip.mp4 in picture-in-picture
 
     # An existing Home Assistant on this machine (host networking), with the demo
     # integration and an admin long-lived token; the pairing is removed afterwards:
@@ -54,6 +56,7 @@ HA_CONTAINER = "pleatview-e2e-ha"
 TV_CONTAINER = "pleatview-e2e-tv"
 TV_IMAGE = "pleatview-e2e-emulator"
 EMULATOR_HOST = "10.0.2.2"  # how the emulator reaches this machine
+SCREENS_TV_NAME = "Living Room TV"  # what the emulator calls itself in --screens runs
 # With --device, adb runs in its own container, on a port the emulator's adb doesn't use.
 # Its key stays on this machine, so the TV only asks to allow it once.
 ADB_CONTAINER = "pleatview-e2e-adb"
@@ -449,6 +452,8 @@ def start(r: Run, work: Path, apk: Path) -> None:
     run("docker", "run", "--rm", "--entrypoint", "sh", "-v", f"{media}:/out", r.tools_image, "-c",
         f"{TEST_VIDEO} /out/e2e.mp4 && {TEST_GIF} /out/e2e.gif && chmod a+r /out/e2e.mp4 /out/e2e.gif")
     (media / "e2e.html").write_text(TEST_PAGE)
+    if r.args.screens:
+        (media / "screens.mp4").symlink_to(Path(r.args.screens).resolve())
     handler = functools.partial(QuietFiles, directory=str(media))
     r.media_server = QuietServer(("127.0.0.1", MEDIA_PORT), handler)
     threading.Thread(target=r.media_server.serve_forever, daemon=True).start()
@@ -483,6 +488,8 @@ def start(r: Run, work: Path, apk: Path) -> None:
         adb("uninstall", PACKAGE, check=False)
     # The package manager can still be busy for a moment after boot_completed.
     wait_for("the APK to install", lambda: adb("install", "-r", "/tmp/pleatview.apk"), timeout=120, interval=5)
+    if r.args.screens is not None:
+        adb("shell", "settings", "put", "global", "device_name", f"'{SCREENS_TV_NAME}'")
     adb("shell", "am", "start", "-n", f"{PACKAGE}/.MainActivity")
     if r.device:
         adb("reverse", f"tcp:{MEDIA_PORT}", f"tcp:{MEDIA_PORT}")
@@ -514,6 +521,57 @@ def devtools(r: Run, expression: str):
     output = run("docker", "run", "--rm", "-i", "--network", "host", "--entrypoint", "python3", r.tools_image,
                  "-c", CDP_SCRIPT, str(DEVTOOLS_PORT), input=expression, timeout=90)
     return json.loads(output)
+
+
+def set_options(ha: HomeAssistant, entry_id: str, changes: dict) -> None:
+    """Change some of the integration's options, keeping the rest."""
+    _, flow = ha.api("POST", "/api/config/config_entries/options/flow", {"handler": entry_id})
+    values = {}
+    for field in flow["data_schema"]:
+        if "default" in field:
+            values[field["name"]] = field["default"]
+        elif (field.get("description") or {}).get("suggested_value") is not None:
+            values[field["name"]] = field["description"]["suggested_value"]
+    _, result = ha.api("POST", f"/api/config/config_entries/options/flow/{flow['flow_id']}", {**values, **changes})
+    if result.get("type") != "create_entry":
+        raise AssertionError(f"couldn't change the options: {result}")
+
+
+def showcase_dashboard(present: set[str]) -> dict:
+    """A tidy dashboard of the demo integration's devices, for the pictures: three columns
+    of about the same height, with short names."""
+
+    def heading(text: str, icon: str) -> list[dict]:
+        return [{"type": "heading", "heading": text, "icon": icon}]
+
+    def tiles(*entities: tuple[str, str], features: list[dict] | None = None) -> list[dict]:
+        return [{"type": "tile", "entity": e, "name": name, **({"features": features} if features else {})}
+                for e, name in entities if e in present]
+
+    def card(card_type: str, entity: str, **extra) -> list[dict]:
+        return [{"type": card_type, "entity": entity, **extra}] if entity in present else []
+
+    sections = [
+        heading("Living room", "mdi:sofa")
+        + card("thermostat", "climate.hvac", name="Climate")
+        + tiles(("sensor.outside_temperature", "Outside"), ("sensor.outside_humidity", "Humidity"),
+                ("fan.living_room_fan", "Fan"), ("switch.decorative_lights", "Fairy lights")),
+        heading("Lights", "mdi:lightbulb-group")
+        + tiles(("light.living_room_rgbww_lights", "Living room"), ("light.ceiling_lights", "Ceiling"),
+                ("light.kitchen_lights", "Kitchen"), ("light.office_rgbw_lights", "Office"),
+                features=[{"type": "light-brightness"}])
+        + heading("Security", "mdi:shield-home")
+        + tiles(("alarm_control_panel.security", "Alarm"), ("lock.front_door", "Front door"),
+                ("lock.kitchen_door", "Back door"), ("cover.garage_door", "Garage")),
+        heading("Weather", "mdi:weather-partly-cloudy")
+        + card("weather-forecast", "weather.demo_weather_south", name="Home", forecast_type="daily")
+        + heading("Energy", "mdi:lightning-bolt")
+        + [{**tile, "grid_options": {"columns": 12}} for tile in tiles(("sensor.power_consumption", "Using now"))]
+        + heading("Blinds", "mdi:blinds")
+        + tiles(("cover.living_room_window", "Living room"), ("cover.kitchen_window", "Kitchen")),
+    ]
+    return {"title": "Our home", "views": [{"title": "Our home", "type": "sections", "max_columns": 3,
+                                        "sections": [{"type": "grid", "cards": cards} for cards in sections]}]}
 
 
 def checks(r: Run, report: Report, apk: Path) -> None:
@@ -654,6 +712,42 @@ def checks(r: Run, report: Report, apk: Path) -> None:
                  lambda: not str(state()["attributes"].get("dashboard", "")).startswith("/map"), timeout=30)
         return f"{home} → /map → home"
 
+    def rotation_waits():
+        # Issue #32: rotation replaced a dashboard Home Assistant had just shown, long before
+        # its duration was up. No remote key has been pressed yet, so rotation is free to run.
+        seen: list[str] = []
+
+        def showing() -> str:
+            current = str(state()["attributes"].get("dashboard"))
+            if not seen or seen[-1] != current:
+                seen.append(current)
+            return current
+
+        def settle() -> None:
+            # New options reload the integration, which then sends the TV its settings again.
+            time.sleep(8)
+            wait_for("the TV after its new settings", ready, timeout=60)
+
+        # The map isn't in the rotation, so rotation would replace it with the overview.
+        set_options(ha, r.entry_id, {"dashboards": "/home/overview", "rotate_seconds": 10})
+        try:
+            settle()
+            ha.call("pleatview", "show_dashboard", {"entity_id": entity["id"], "path": "/map", "duration": 25})
+            try:
+                wait_for("the map", lambda: showing().startswith("/map"), timeout=30, interval=1)
+                for _ in range(18):  # more than the rotation period, less than the duration
+                    time.sleep(1)
+                    if not showing().startswith("/map"):
+                        raise AssertionError("rotation replaced the dashboard before its 25 seconds were up")
+                wait_for("the dashboard to go back", lambda: not showing().startswith("/map"), timeout=30, interval=1)
+            except (AssertionError, TimeoutError) as err:
+                raise AssertionError(f"{err}; the TV showed {' → '.join(seen)}") from None
+            return "kept for its 25 seconds despite rotation every 10, then went back"
+        finally:
+            set_options(ha, r.entry_id, {"dashboards": "", "rotate_seconds": 0})
+            settle()
+            ha.call("pleatview", "home", {"entity_id": entity["id"]})
+
     def webpage():
         # Home Assistant would show the site in a frame, where many sites refuse to load or
         # lose their cookies; PleatView opens the site itself.
@@ -754,12 +848,106 @@ def checks(r: Run, report: Report, apk: Path) -> None:
         wait_for("Home Assistant to restart", lambda: http("GET", f"{ha.url}/api/")[0] in (200, 401), timeout=300)
         wait_for("the TV to reconnect", ready, timeout=180)
 
+    def back_after_sign_in():
+        # Issue #31: Back after "Not now" went back into the password-protected site, and
+        # its card came back over the home dashboard, titled "Home Assistant".
+        ha.call("pleatview", "forget_sign_ins", {"entity_id": entity["id"]})
+        created = ws_call(r, {"type": "lovelace/dashboards/create", "url_path": "dashboard-pleatview-back",
+                              "title": "E2E back", "mode": "storage", "show_in_sidebar": True})
+        if not created.get("success"):
+            raise AssertionError(f"couldn't create a Webpage dashboard: {created}")
+        try:
+            ws_call(r, {"type": "lovelace/config/save", "url_path": "dashboard-pleatview-back",
+                        "config": {"strategy": {"type": "iframe", "url": f"{r.site}/prompt/"}}})
+            time.sleep(2)
+            ha.call("pleatview", "show_dashboard", {"entity_id": entity["id"], "path": "/dashboard-pleatview-back"})
+            wait_for("the sign-in card", lambda: state()["attributes"].get("sign_in_needed") == "E2E back", timeout=45)
+            adb("shell", "input", "keyevent", "KEYCODE_BACK")  # Not now
+            wait_for("the card to close", lambda: not state()["attributes"].get("sign_in_needed"), timeout=15)
+            ha.call("pleatview", "home", {"entity_id": entity["id"]})
+            wait_for("the home dashboard",
+                     lambda: str(state()["attributes"].get("dashboard") or "").startswith("/"), timeout=30)
+            time.sleep(3)
+            adb("shell", "input", "keyevent", "KEYCODE_BACK")
+            time.sleep(3)
+            if again := state()["attributes"].get("sign_in_needed"):
+                raise AssertionError(f"Back brought the sign-in card back, titled {again!r}")
+            if "Home dashboard" not in screen_texts():
+                raise AssertionError("Back on the home dashboard didn't open the menu")
+            adb("shell", "input", "keyevent", "KEYCODE_BACK")
+            return "the menu opened, no card"
+        finally:
+            ws_call(r, {"type": "lovelace/dashboards/delete", "dashboard_id": created["result"]["id"]})
+            ha.call("pleatview", "home", {"entity_id": entity["id"]})
+
     def update_in_place():
         adb("install", "-r", "/tmp/pleatview.apk")
         adb("shell", "am", "start", "-n", f"{PACKAGE}/.MainActivity")
         if not r.device:
             adb("forward", f"tcp:{TV_PORT}", "tcp:8765")
         wait_for("the TV after the update", ready, timeout=180)
+
+    def screens():
+        """The website's and the stores' pictures: a tidy dashboard, then features over it."""
+        folder = report.out / "screens"
+        folder.mkdir(exist_ok=True)
+        shutil.copy(report.out / "01-setup.png", folder / "setup.png")
+
+        def shot(name: str, settle: float = 3) -> None:
+            time.sleep(settle)
+            png = subprocess.run([*ADB_COMMAND, "exec-out", "screencap", "-p"], capture_output=True, check=False).stdout
+            (folder / f"{name}.png").write_bytes(png)
+
+        # As the install guide recommends; the menu then has no warning about it.
+        adb("shell", "appops", "set", PACKAGE, "SYSTEM_ALERT_WINDOW", "allow")
+        _, states = ha.api("GET", "/api/states")
+        ws_call(r, {"type": "lovelace/dashboards/create", "url_path": "dashboard-home", "title": "Our home",
+                    "mode": "storage", "show_in_sidebar": True})
+        ws_call(r, {"type": "lovelace/config/save", "url_path": "dashboard-home",
+                    "config": showcase_dashboard({s["entity_id"] for s in states})})
+        # The TV's home, zoomed out a little so a whole home fits on one screen.
+        set_options(ha, r.entry_id, {"home_dashboard": "/dashboard-home", "zoom": 80})
+        ha.call("pleatview", "home", {"entity_id": entity["id"]})
+        wait_for("the showcase dashboard",
+                 lambda: str(state()["attributes"].get("dashboard", "")).startswith("/dashboard-home"), timeout=30)
+        shot("dashboard", settle=10)
+
+        ha.call("pleatview", "notify", {"entity_id": entity["id"], "title": "Laundry",
+                                        "message": "The washing machine has finished.", "duration": 8})
+        shot("notification")
+        time.sleep(8)  # until the card has gone
+
+        adb("shell", "input", "keyevent", "KEYCODE_BACK")
+        shot("menu", settle=4)
+        adb("shell", "input", "keyevent", "KEYCODE_BACK")
+
+        if r.args.screens:
+            ha.call("media_player", "play_media", {
+                "entity_id": entity["id"], "media_content_type": "video", "media_content_id": f"{r.site}/screens.mp4",
+                "extra": {"title": "Caminandes: Gran Dillama", "mode": "pip", "position": "bottom-right",
+                          "size": 40, "start_position": 12}})
+            wait_for("playback", lambda: state()["state"] == "playing", timeout=60)
+            shot("picture-in-picture", settle=4)
+            ha.call("media_player", "media_stop", {"entity_id": entity["id"]})
+            wait_for("the dashboard after stop", lambda: state()["state"] == "idle", timeout=20)
+
+        # The sign-in check saved a sign-in for the test site; without it the card shows.
+        ha.call("pleatview", "forget_sign_ins", {"entity_id": entity["id"]})
+        created = ws_call(r, {"type": "lovelace/dashboards/create", "url_path": "dashboard-energy",
+                              "title": "Energy monitor", "mode": "storage", "show_in_sidebar": True})
+        ws_call(r, {"type": "lovelace/config/save", "url_path": "dashboard-energy",
+                    "config": {"strategy": {"type": "iframe", "url": f"{r.site}/prompt/"}}})
+        time.sleep(2)
+        try:
+            ha.call("pleatview", "show_dashboard", {"entity_id": entity["id"], "path": "/dashboard-energy"})
+            wait_for("the sign-in card",
+                     lambda: state()["attributes"].get("sign_in_needed") == "Energy monitor", timeout=45)
+            shot("sign-in")
+            adb("shell", "input", "keyevent", "KEYCODE_BACK")
+        finally:
+            ha.call("pleatview", "home", {"entity_id": entity["id"]})
+            ws_call(r, {"type": "lovelace/dashboards/delete", "dashboard_id": created["result"]["id"]})
+        return ", ".join(sorted(p.stem for p in folder.glob("*.png")))
 
     report.check("Setup screen shows a PIN", setup_screen)
     if "pin" in entity:
@@ -771,11 +959,16 @@ def checks(r: Run, report: Report, apk: Path) -> None:
         ("Video plays and stops", video),
         ("Camera without a stream shows as picture-in-picture", camera),
         ("show_dashboard and home switch dashboards", dashboards),
+        ("Rotation keeps a dashboard Home Assistant showed", rotation_waits),
         ("Webpage dashboard opens the site directly", webpage),
         ("Sign-ins: entered from a phone, then saved", sign_ins),
         ("turn_off and turn_on", standby),
         ("Recovers after a Home Assistant restart", ha_restart),
         ("Update in place keeps the pairing", update_in_place),
+        # After the update: it restarted the app, which forgets the test site's password
+        # that the WebView kept for the session after the sign-in check.
+        ("Back after a dismissed sign-in opens the menu", back_after_sign_in),
+        *([("Website and store pictures", screens)] if r.args.screens is not None else []),
     ]:
         if "id" in entity:
             report.check(name, fn)
@@ -791,7 +984,11 @@ def main() -> int:
     parser.add_argument("--device", metavar="HOST[:PORT]", help="test on this TV over network adb, not the emulator")
     parser.add_argument("--apk", help="APK to test (default: build a debug APK)")
     parser.add_argument("--keep", action="store_true", help="leave the containers running")
+    parser.add_argument("--screens", nargs="?", const="", metavar="VIDEO",
+                        help="after the checks, take the website and store pictures; VIDEO plays in picture-in-picture")
     args = parser.parse_args()
+    if args.screens is not None and (args.device or args.ha_url):
+        parser.error("--screens needs the emulator and a throwaway Home Assistant: it renames the TV and adds dashboards")
     if bool(args.ha_url) != bool(args.ha_token_file):
         parser.error("--ha-url and --ha-token-file go together")
     if args.device and not args.ha_url:
@@ -835,10 +1032,13 @@ def main() -> int:
             print(f"Containers kept: {tv_container}" + ("" if r.external else f", {HA_CONTAINER} on {r.ha.url}"))
         else:
             run("docker", "rm", "-f", tv_container, *([] if r.external else [HA_CONTAINER]), check=False)
-        # Home Assistant writes its config as root; remove it from inside a container.
-        run("docker", "run", "--rm", "-v", f"{work}:/work", TV_IMAGE, "rm", "-rf", "/work/ha", "/work/media",
-            check=False)
-        shutil.rmtree(work, ignore_errors=True)
+        if args.keep:
+            print(f"Home Assistant's config and the test site's files stay in {work}")
+        else:
+            # Home Assistant writes its config as root; remove it from inside a container.
+            run("docker", "run", "--rm", "-v", f"{work}:/work", TV_IMAGE, "rm", "-rf", "/work/ha", "/work/media",
+                check=False)
+            shutil.rmtree(work, ignore_errors=True)
 
     lines = [f"{status}  {name}" + (f"  ({detail})" if detail else "") for status, name, detail in report.results]
     if report.title:
