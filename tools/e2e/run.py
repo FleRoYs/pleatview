@@ -61,6 +61,7 @@ SCREENS_TV_NAME = "Living Room TV"  # what the emulator calls itself in --screen
 # Its key stays on this machine, so the TV only asks to allow it once.
 ADB_CONTAINER = "pleatview-e2e-adb"
 ADB_SERVER_PORT = 5038
+DONATE_URL = "https://pleatview.hustlesman.com/donate"
 ADB_KEYS = Path("~/.config/pleatview/adb").expanduser()
 ADB_COMMAND = ["docker", "exec", TV_CONTAINER, "adb"]  # main() points this at the TV for --device
 
@@ -385,6 +386,15 @@ class QuietServer(ThreadingHTTPServer):
         # The player hangs up mid-file when a video stops.
         if not isinstance(sys.exc_info()[1], ConnectionError):
             super().handle_error(request, client_address)
+
+
+def text_center(text: str, texts: str) -> tuple[int, int] | None:
+    """The middle of the view showing exactly this text, from a UI dump."""
+    for node in texts.split("<node"):
+        if f' text="{text}"' in node and ' bounds="' in node:
+            left, top, right, bottom = map(int, re.findall(r"\d+", node.split(' bounds="', 1)[1].split('"', 1)[0]))
+            return (left + right) // 2, (top + bottom) // 2
+    return None
 
 
 def screen_texts() -> str:
@@ -921,6 +931,32 @@ def checks(r: Run, report: Report, apk: Path) -> None:
             ws_call(r, {"type": "lovelace/dashboards/delete", "dashboard_id": created["result"]["id"]})
             ha.call("pleatview", "home", {"entity_id": entity["id"]})
 
+    def support_code():
+        # The GitHub download (which this is) offers a donation QR code in its menu.
+        ha.call("pleatview", "home", {"entity_id": entity["id"]})
+        wait_for("the home dashboard",
+                 lambda: str(state()["attributes"].get("dashboard") or "").startswith("/"), timeout=30)
+        time.sleep(2)
+        adb("shell", "input", "keyevent", "KEYCODE_BACK")
+        texts = wait_for("the menu", lambda: (lambda t: t if "Home dashboard" in t else None)(screen_texts()),
+                         timeout=15)
+        # It sits near the end of the menu, which scrolls when there are many dashboards.
+        for _ in range(20):
+            if where := text_center("Support PleatView", texts):
+                break
+            adb("shell", "input", "keyevent", "KEYCODE_DPAD_DOWN")
+            time.sleep(0.5)
+            texts = screen_texts()
+        else:
+            raise AssertionError("the menu has no Support PleatView item")
+        adb("shell", "input", "tap", str(where[0]), str(where[1]))
+        code = wait_for("the QR code", lambda: screen_attribute("support_qr", "content-desc"), timeout=10)
+        if code != DONATE_URL:
+            raise AssertionError(f"the QR code opens {code!r}, not {DONATE_URL}")
+        report.screenshot("08-support")
+        adb("shell", "input", "keyevent", "KEYCODE_BACK")
+        return f"QR code for {code}"
+
     def update_in_place():
         adb("install", "-r", "/tmp/pleatview.apk")
         adb("shell", "am", "start", "-n", f"{PACKAGE}/.MainActivity")
@@ -1010,6 +1046,7 @@ def checks(r: Run, report: Report, apk: Path) -> None:
         # After the update: it restarted the app, which forgets the test site's password
         # that the WebView kept for the session after the sign-in check.
         ("Back after a dismissed sign-in opens the menu", back_after_sign_in),
+        ("Support PleatView in the menu", support_code),
         *([("Website and store pictures", screens)] if r.args.screens is not None else []),
     ]:
         if "id" in entity:

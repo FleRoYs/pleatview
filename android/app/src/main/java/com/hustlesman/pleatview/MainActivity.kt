@@ -10,6 +10,7 @@ import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
 import android.text.InputType
+import android.view.Gravity
 import android.view.KeyEvent
 import android.view.View
 import android.view.WindowManager
@@ -514,9 +515,33 @@ class MainActivity : Activity(), Hub.Display, DashboardController.Callbacks, Med
                 toasts.show(Command.Notify(null, getString(R.string.signins_forgotten), null, 6, Command.Position.TOP_RIGHT))
             }
         }
+        if (Support.offered(BuildConfig.DONATE_URL, Support.installer(this))) {
+            addMenuButton(getString(R.string.menu_support)) { showSupport() }
+        }
         val exit = addMenuButton(getString(R.string.menu_exit)) { finish() }
         menuOverlay.visibility = View.VISIBLE
         (first ?: exit).requestFocus()
+    }
+
+    /** The donation page as a QR code, since a TV has no browser to speak of. */
+    private fun showSupport() {
+        menuItems.removeAllViews()
+        menuItems.addView(menuText(getString(R.string.menu_support), 18f))
+        menuItems.addView(menuText(getString(R.string.support_text), 14f))
+        val size = (200 * resources.displayMetrics.density).toInt()
+        val qr = ImageView(this).apply {
+            id = R.id.support_qr
+            setImageBitmap(SetupCode.bitmap(BuildConfig.DONATE_URL, size))
+            contentDescription = BuildConfig.DONATE_URL
+        }
+        menuItems.addView(qr, LinearLayout.LayoutParams(size, size).apply { gravity = Gravity.CENTER_HORIZONTAL })
+        menuItems.addView(menuText(BuildConfig.DONATE_URL.removePrefix("https://"), 13f).apply {
+            gravity = Gravity.CENTER_HORIZONTAL
+            setPadding(0, (12 * resources.displayMetrics.density).toInt(), 0, 0)
+        })
+        val back = addMenuButton(getString(R.string.support_back)) { openMenu() }
+        menuOverlay.visibility = View.VISIBLE
+        back.requestFocus()
     }
 
     /** Opens Android's "Display over other apps" screen; many Google TV builds don't have one. */
