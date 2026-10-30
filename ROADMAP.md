@@ -107,8 +107,8 @@ from GitHub Releases.
 - [ ] 7-day soak on the Streamer and the Chromecast HD, with a dashboard showing a live
       camera and rotation on. No crash or blank screen, stable memory (checked daily),
       and automatic recovery from a router reboot and a Home Assistant restart.
-      `tools/soak/run.py` automates it. A first run on the Fire TV Stick passed at 15 hours
-      (memory +10 %, no crashes) and keeps running; the Chromecast HD follows
+      `tools/soak/run.py` automates it. A first run on the Fire TV Stick passed after 23 hours
+      (PleatView's memory +3 %, no crashes or restarts); the Chromecast HD follows
 - [x] Decide the foreground-service type Google Play will accept: `connectedDevice`
       (Home Assistant controls the TV over the network), with Wi-Fi kept optional
 - [x] Ask for "Display over other apps" from the PleatView menu on TVs that have that
