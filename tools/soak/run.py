@@ -28,6 +28,7 @@ import os
 import random
 import re
 import signal
+import socket
 import statistics
 import subprocess
 import sys
@@ -45,7 +46,6 @@ import run as e2e  # noqa: E402  (the websocket and DevTools scripts)
 PACKAGE = e2e.PACKAGE
 ADB_CONTAINER = "pleatview-soak-adb"
 ADB_SERVER_PORT = 5039
-DEVTOOLS_PORT = 19223
 TOOLS_IMAGE = "ghcr.io/home-assistant/home-assistant:stable"
 SOAK_DASHBOARD = "dashboard-soak"
 SAMPLE_SECONDS = 60
@@ -118,6 +118,26 @@ class Adb:
         state = subprocess.run(["docker", "exec", ADB_CONTAINER, "adb", "-s", self.device, "get-state"],
                                capture_output=True, text=True, timeout=30, check=False)
         return state.stdout.strip() == "device"
+
+
+def free_port() -> int:
+    with socket.socket() as probe:
+        probe.bind(("127.0.0.1", 0))
+        return probe.getsockname()[1]
+
+
+def live_soak(out: Path) -> Path | None:
+    """Another soak, of another TV, whose runner is still going."""
+    for pid_file in out.parent.glob("*/runner.pid"):
+        if pid_file.parent == out:
+            continue
+        try:
+            command = Path(f"/proc/{int(pid_file.read_text())}/cmdline").read_bytes()
+        except (OSError, ValueError):
+            continue
+        if b"soak/run.py" in command:
+            return pid_file.parent
+    return None
 
 
 def start_adb_server() -> None:
@@ -245,6 +265,7 @@ class Soak:
         self.notify_turn = 0
         self.gif_url = None
         self.watcher = LogWatcher(self)
+        self.devtools_port = free_port()  # its own, so two TVs can soak at once
 
     # -- files ---------------------------------------------------------------------------
     def write(self, name: str, line: str) -> None:
@@ -370,9 +391,9 @@ class Soak:
         row["sign_in"] = attributes.get("sign_in_needed")
         if js and pid:
             try:
-                self.adb("forward", f"tcp:{DEVTOOLS_PORT}", f"localabstract:webview_devtools_remote_{pid}")
+                self.adb("forward", f"tcp:{self.devtools_port}", f"localabstract:webview_devtools_remote_{pid}")
                 output = e2e.run("docker", "run", "--rm", "-i", "--network", "host", "--entrypoint", "python3",
-                                 TOOLS_IMAGE, "-c", e2e.CDP_SCRIPT, str(DEVTOOLS_PORT), input=JS_HEAP,
+                                 TOOLS_IMAGE, "-c", e2e.CDP_SCRIPT, str(self.devtools_port), input=JS_HEAP,
                                  timeout=90, check=False)
                 value = json.loads(output) if output.strip() else None
                 if isinstance(value, dict):
@@ -631,6 +652,14 @@ def restore(out: Path, ha: HomeAssistant) -> None:
         flow_id, _ = ha.options_form(setup["entry_id"])
         status, result = ha.request("POST", f"/api/config/config_entries/options/flow/{flow_id}", original)
         print(f"Options restored: {status} {result.get('type') if isinstance(result, dict) else result}")
+    other = live_soak(out)
+    if setup.get("created_dashboard") and other:
+        # The other TV still rotates through the Soak dashboard: its restore removes it.
+        other_setup = json.loads((other / "setup.json").read_text())
+        other_setup["created_dashboard"] = True
+        (other / "setup.json").write_text(json.dumps(other_setup, indent=2))
+        setup.pop("created_dashboard")
+        print(f"Left the Soak dashboard to the soak still running in {other.name}.")
     if setup.pop("created_dashboard", False):
         listed = ha.ws({"type": "lovelace/dashboards/list"}).get("result") or []
         for dashboard in listed:

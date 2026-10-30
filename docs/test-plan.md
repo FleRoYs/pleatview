@@ -107,6 +107,10 @@ tools/soak/run.py --report tools/soak/out/<name>    # the summary so far
 tools/soak/run.py --restore tools/soak/out/<name>   # stop, put the options back, remove its dashboard
 ```
 
+Several TVs can soak at once against the same Home Assistant: start one runner per TV, each
+with its own `--out`. They share the Soak dashboard, which goes when the last of them is
+restored. A Google TV with Wireless debugging has a changing port: pass `--device IP:PORT`.
+
 The report compares the first and the last hour of idle samples, shows the trend after the
 first hour in MB per hour, and ends in PASS when memory grew less than 20 % without crashes or
 restarts.
