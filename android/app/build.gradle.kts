@@ -9,6 +9,18 @@ fun signingValue(name: String): String? =
     providers.gradleProperty("pleatview.$name").orNull
         ?: System.getenv("PLEATVIEW_" + name.uppercase())
 
+// Where the build goes. The GitHub download (the default) has "Support PleatView" in its
+// menu; store builds leave it out. App bundles only go to stores, so they need
+// -Ppleatview.distribution=store.
+val distribution = providers.gradleProperty("pleatview.distribution").orElse("github").get()
+require(distribution == "github" || distribution == "store") {
+    "pleatview.distribution is github or store, not $distribution"
+}
+if (distribution != "store" && gradle.startParameter.taskNames.any { it.substringAfterLast(':').startsWith("bundle") }) {
+    throw GradleException("App bundles are for the stores: build them with -Ppleatview.distribution=store")
+}
+val donateUrl = if (distribution == "github") "https://pleatview.hustlesman.com/donate" else ""
+
 android {
     namespace = "com.hustlesman.pleatview"
     compileSdk = 37
@@ -19,6 +31,7 @@ android {
         targetSdk = 36
         versionCode = 4
         versionName = "1.0.1"
+        buildConfigField("String", "DONATE_URL", "\"$donateUrl\"")
     }
 
     signingConfigs {

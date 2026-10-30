@@ -37,6 +37,7 @@ checklist below and tick what passed. Anything that fails gets its own issue.
 - [ ] Rotation cycles dashboards while nobody uses the remote, and pauses while someone does
 - [ ] Back closes Home Assistant dialogs, then goes to the home dashboard, then opens the menu
 - [ ] The menu shows address, PIN and version, and its dashboard buttons work
+- [ ] The GitHub download's menu has *Support PleatView*, whose QR code opens the donation page; a store build has no such item **(auto: GitHub build)**
 
 ### Casting and media
 - [ ] MP4 video plays full screen; Home Assistant shows title, position and duration; pause, seek and stop work **(auto: play and stop)**

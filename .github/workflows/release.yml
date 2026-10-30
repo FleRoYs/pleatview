@@ -53,7 +53,11 @@ jobs:
           PLEATVIEW_KEYSTORE_PASSWORD: ${{ secrets.PLEATVIEW_KEYSTORE_PASSWORD }}
           PLEATVIEW_KEY_ALIAS: ${{ secrets.PLEATVIEW_KEY_ALIAS }}
           PLEATVIEW_KEY_PASSWORD: ${{ secrets.PLEATVIEW_KEY_PASSWORD }}
-        run: ./gradlew --no-daemon assembleRelease bundleRelease
+        # The bundle goes to Google Play, so it's a store build: no "Support PleatView" in the
+        # menu. The APK is the GitHub download, which has it.
+        run: |
+          ./gradlew --no-daemon bundleRelease -Ppleatview.distribution=store
+          ./gradlew --no-daemon assembleRelease
 
       - name: Keep the app bundle for Google Play
         uses: actions/upload-artifact@v4
