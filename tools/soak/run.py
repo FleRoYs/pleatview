@@ -78,7 +78,7 @@ set -- $(ps -A -o PID,NAME | grep sandboxed_process | head -1) ; R=$1
 echo "@@renderer $R $(cut -d' ' -f14,15 /proc/$R/stat 2>/dev/null)"
 [ -n "$R" ] && echo "@@renderer_total $(dumpsys meminfo $R 2>/dev/null | grep -E '^ *TOTAL( PSS)?:')"
 echo "@@available $(grep MemAvailable /proc/meminfo)"
-echo "@@resumed $(dumpsys activity activities | grep -m1 mResumedActivity)"
+echo "@@resumed $(dumpsys activity activities | grep -m1 ResumedActivity)"
 echo "@@wakefulness $(dumpsys power | grep -m1 mWakefulness=)"
 echo "@@meminfo"
 dumpsys meminfo {PACKAGE}
