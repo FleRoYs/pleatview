@@ -241,7 +241,6 @@ class Soak:
         self.pid = ""
         self.ticks: dict[str, tuple[int, float]] = {}
         self.activity = ("idle", 0.0)
-        self.checks: list[tuple[float, str, callable]] = []
         self.counts: dict[str, list[int]] = {}
         self.notify_turn = 0
         self.gif_url = None
@@ -401,7 +400,18 @@ class Soak:
         return ok
 
     def later(self, seconds: float, description: str, check) -> None:
-        self.checks.append((time.time() + seconds, description, check))
+        """Runs the check on its own timer. The main loop can be busy with a sample for most of a
+        minute, which once made a 25-second check run after the 60-second duration it checked."""
+        def run() -> None:
+            if self.stopping.is_set():
+                return
+            try:
+                check()
+            except Exception as error:  # noqa: BLE001  (a soak keeps going)
+                self.note(f"check failed ({description}): {error!r}")
+        timer = threading.Timer(seconds, run)
+        timer.daemon = True
+        timer.start()
 
     def expect(self, description: str, condition) -> None:
         state = self.ha.state(self.args.entity)
@@ -493,9 +503,6 @@ class Soak:
                 break
             minute = int(elapsed // 60)
             try:
-                for due, description, check in [c for c in self.checks if c[0] <= time.time()]:
-                    self.checks.remove((due, description, check))
-                    check()
                 for name, every, at, action in plan:
                     if minute >= at and (minute - at) % every == 0 and (name, minute) not in done:
                         done.add((name, minute))
