@@ -99,8 +99,9 @@ from GitHub Releases.
 - [ ] Test plan passed on: Google TV Streamer, Chromecast with Google TV (HD, the
       low-memory worst case), a TV with Google TV built in, Fire TV (Fire OS 7 or 8).
       Fire TV Stick (3rd Gen, Fire OS 7.7, 1 GB): every automated check passes
-      (`tools/e2e/run.py --device`, 29 Oct), and it opens by itself after a reboot; the
-      other manual checks are still to do
+      (`tools/e2e/run.py --device`, 29 Oct), and it opens by itself after a reboot.
+      Chromecast with Google TV (HD, Android TV 14, 1.4 GB): every automated check passes
+      (30 Oct). The other manual checks are still to do
 - [ ] Home Assistant versions: oldest supported (2025.1), current stable, beta. On 29 Oct
       all 13 checks passed on 2025.1.4, 2026.10.4, the 2026.11 beta (2026.11.0b0) and the
       2026.11 nightly. Still to run: the stable release again before v1.1.0
@@ -108,7 +109,8 @@ from GitHub Releases.
       camera and rotation on. No crash or blank screen, stable memory (checked daily),
       and automatic recovery from a router reboot and a Home Assistant restart.
       `tools/soak/run.py` automates it. A first run on the Fire TV Stick passed after 23 hours
-      (PleatView's memory +3 %, no crashes or restarts); the Chromecast HD follows
+      (PleatView's memory +3 %, no crashes or restarts). Next: 7 days on the Chromecast HD
+      and the Fire TV Stick
 - [x] Decide the foreground-service type Google Play will accept: `connectedDevice`
       (Home Assistant controls the TV over the network), with Wi-Fi kept optional
 - [x] Ask for "Display over other apps" from the PleatView menu on TVs that have that

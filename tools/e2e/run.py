@@ -526,6 +526,8 @@ def devtools(r: Run, expression: str):
 def set_options(ha: HomeAssistant, entry_id: str, changes: dict) -> None:
     """Change some of the integration's options, keeping the rest."""
     _, flow = ha.api("POST", "/api/config/config_entries/options/flow", {"handler": entry_id})
+    if not isinstance(flow, dict) or "data_schema" not in flow:
+        raise AssertionError(f"couldn't open the options: {str(flow)[:200]}")
     values = {}
     for field in flow["data_schema"]:
         if "default" in field:
@@ -533,8 +535,11 @@ def set_options(ha: HomeAssistant, entry_id: str, changes: dict) -> None:
         elif (field.get("description") or {}).get("suggested_value") is not None:
             values[field["name"]] = field["description"]["suggested_value"]
     _, result = ha.api("POST", f"/api/config/config_entries/options/flow/{flow['flow_id']}", {**values, **changes})
-    if result.get("type") != "create_entry":
-        raise AssertionError(f"couldn't change the options: {result}")
+    if not isinstance(result, dict) or result.get("type") != "create_entry":
+        # An existing Home Assistant only loads new integration code when it restarts, and
+        # until then it rejects options it doesn't know.
+        raise AssertionError(f"couldn't change the options {sorted(changes)}: {str(result)[:200]}"
+                             " (restart Home Assistant after updating the integration)")
 
 
 def showcase_dashboard(present: set[str]) -> dict:
@@ -620,10 +625,18 @@ def checks(r: Run, report: Report, apk: Path) -> None:
             ha.api("DELETE", flow_path)
             raise
         r.entry_id = result["result"]["entry_id"]
-        _, states = ha.api("GET", "/api/states")
-        entity["id"] = next(s["entity_id"] for s in states
-                            if s["entity_id"].startswith("media_player.") and "app_version" in s["attributes"])
-        entity["notify"] = entity["id"].replace("media_player.", "notify.")
+
+        # This TV's own entities. A Home Assistant with other PleatView TVs has their media
+        # players too, and a run once sent half its commands to one of them.
+        def own_entities():
+            listed = ws_call(r, {"type": "config/entity_registry/list"}).get("result") or []
+            found = {e["entity_id"].split(".")[0]: e["entity_id"] for e in listed
+                     if e.get("config_entry_id") == r.entry_id}
+            return found if "media_player" in found else None
+
+        found = wait_for("this TV's entities in Home Assistant", own_entities, timeout=30)
+        entity["id"] = found["media_player"]
+        entity["notify"] = found.get("notify", entity["id"].replace("media_player.", "notify."))
         return entity["id"]
 
     def state():
