@@ -271,3 +271,8 @@ Ideas we'll consider after M6, or between milestones if there's slack:
 - Several Home Assistant servers on one TV
 - Run the end-to-end test in CI every week against the Home Assistant beta (GitHub runners have KVM)
 - A Downloader short code for `pleatview.hustlesman.com/apk` (digits instead of a URL on Fire TV)
+- A standalone controller for PleatView TVs without Home Assistant: a small program for
+  Windows, macOS and Linux with its web page at `localhost`, offering schedules, playlists,
+  groups of TVs and a media library. Built on protocol v2, so it covers every PleatView TV,
+  and designed alongside M4. It lives in this repository, next to the other clients of the
+  protocol. The TV app gets a mode without Home Assistant
