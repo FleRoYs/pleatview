@@ -221,8 +221,8 @@ submitted.
 *Mon 8 Mar → Fri 2 Apr 2027.* Everything listed, documented and supportable.
 
 - [ ] LG and Samsung approvals, with review feedback fixed
-- [ ] Add the manifest category `media_entertainment.tv_streaming` once hassfest's
-      published image accepts it
+- [x] Add the manifest category `media_entertainment.tv_streaming` once hassfest's
+      published image accepts it (it does since 30 Oct)
 - [ ] 30-day soak on one Android reference device, one LG TV and one Samsung TV
 - [ ] Website: install guide per platform, automation cookbook, troubleshooting,
       compatibility matrix
