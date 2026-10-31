@@ -13,9 +13,10 @@
          notifications over other apps. Granted manually (see README). -->
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
 
+    <!-- Required in store builds (TVs only), optional in the GitHub download (tablets too). -->
     <uses-feature
         android:name="android.software.leanback"
-        android:required="false" />
+        android:required="${tvRequired}" />
     <uses-feature
         android:name="android.hardware.touchscreen"
         android:required="false" />
