@@ -29,8 +29,8 @@ android {
         applicationId = "com.hustlesman.pleatview"
         minSdk = 24
         targetSdk = 36
-        versionCode = 4
-        versionName = "1.0.1"
+        versionCode = 5
+        versionName = "1.0.2"
         buildConfigField("String", "DONATE_URL", "\"$donateUrl\"")
         // Stores list PleatView for TVs only. The GitHub download also installs on tablets
         // used as wall panels.
