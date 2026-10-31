@@ -341,7 +341,8 @@ the same key. For a signed local build, set `PLEATVIEW_KEYSTORE` (a path anywher
 disk), `PLEATVIEW_KEYSTORE_PASSWORD`, `PLEATVIEW_KEY_ALIAS` and `PLEATVIEW_KEY_PASSWORD`
 before running `tools/build-apk.sh assembleRelease`. Without them, release builds fall
 back to the local debug key. App bundles are for the stores, so they need
-`-Ppleatview.distribution=store`, which leaves *Support PleatView* out of the menu:
+`-Ppleatview.distribution=store`, which leaves *Support PleatView* out of the menu and lists
+the app for TVs only:
 `tools/build-apk.sh bundleRelease -Ppleatview.distribution=store`.
 
 ## Limitations
